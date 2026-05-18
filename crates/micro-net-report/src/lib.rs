@@ -67,6 +67,8 @@ pub fn write_aggregate_csv(
     let mut header: Vec<String> = vec![
         "experiment_id",
         "policy",
+        "policy_family",
+        "policy_variant",
         "seed",
         "created",
         "completed",
@@ -94,6 +96,8 @@ pub fn write_aggregate_csv(
         let mut row: Vec<String> = vec![
             s.experiment_id.clone(),
             s.policy.clone(),
+            s.policy_family.clone(),
+            s.policy_variant.clone(),
             s.seed.to_string(),
             s.created.to_string(),
             s.completed.to_string(),
@@ -132,7 +136,7 @@ pub fn write_grouped_stats_csv(
             .entry((
                 summary.topology.clone(),
                 summary.scenario.clone(),
-                summary.policy.clone(),
+                summary.policy_variant.clone(),
                 summary.requests_per_tick,
             ))
             .or_default()
@@ -143,7 +147,7 @@ pub fn write_grouped_stats_csv(
     writer.write_record([
         "topology",
         "scenario",
-        "policy",
+        "policy_variant",
         "requests_per_tick",
         "n",
         "avg_latency_mean",
@@ -163,11 +167,11 @@ pub fn write_grouped_stats_csv(
         "error_rate_ci95",
     ])?;
 
-    for ((topology, scenario, policy, load), rows) in groups {
+    for ((topology, scenario, policy_variant, load), rows) in groups {
         writer.write_record([
             topology,
             scenario,
-            policy,
+            policy_variant,
             load.to_string(),
             rows.len().to_string(),
             stat_mean(rows.iter().map(|s| s.avg_latency_ms)),
@@ -215,7 +219,7 @@ pub fn write_effect_sizes_csv(
         "topology",
         "scenario",
         "requests_per_tick",
-        "policy",
+        "policy_variant",
         "baseline_policy",
         "n_policy",
         "n_baseline",
@@ -228,7 +232,10 @@ pub fn write_effect_sizes_csv(
     for ((topology, scenario, load), rows) in groups {
         let mut by_policy: BTreeMap<String, Vec<&SimulationSummary>> = BTreeMap::new();
         for summary in rows {
-            by_policy.entry(summary.policy.clone()).or_default().push(summary);
+            by_policy
+                .entry(summary.policy_variant.clone())
+                .or_default()
+                .push(summary);
         }
 
         let Some(baseline_ref) = by_policy.get(baseline_policy) else {

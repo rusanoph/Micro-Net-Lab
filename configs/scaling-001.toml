@@ -1,0 +1,37 @@
+schema_version = "0.1"
+experiment_config_version = "scaling-final-001"
+
+# One-shot scaling experiment: multiple topology sizes and replica counts in a single run.
+# This is intentionally not a full cross-product over policies/scenarios/loads, to keep runtime manageable.
+
+topologies = ["star", "ring", "full-mesh", "random-sparse"]
+
+policies = [
+  "random",
+  "round-robin",
+  "least-inflight",
+  "score-local+network",
+  "score-no-host-pressure",
+]
+
+scenarios = ["healthy", "zone-burst", "partial-failure"]
+
+load_levels = [10, 50, 100]
+seeds = 50
+
+logical_services_list = [3, 10, 20]
+replicas_per_service_list = [3, 5]
+
+duration_ticks = 12000
+warmup_ticks = 2000
+drain_ticks = 1000
+
+observability_lag_ticks = 10
+observability_noise = 0.03
+
+trace = "none"
+artifacts = "aggregate"
+progress_ms = 1000
+
+out = "./bench-results/scaling-final-001"
+

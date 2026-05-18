@@ -296,6 +296,10 @@ struct BenchFingerprint<'a> {
     load_levels: &'a str,
     logical_services: usize,
     replicas_per_service: usize,
+    #[serde(default)]
+    logical_services_list: Option<Vec<usize>>,
+    #[serde(default)]
+    replicas_per_service_list: Option<Vec<usize>>,
     duration_ticks: u64,
     warmup_ticks: u64,
     drain_ticks: u64,
@@ -316,6 +320,15 @@ fn stable_fnv1a_64(bytes: &[u8]) -> u64 {
 }
 
 fn run_fingerprint(args: &BenchArgs) -> anyhow::Result<u64> {
+    let (logical_services_list, replicas_per_service_list) = if let Some(cfg_path) = args.config.clone() {
+        let raw = std::fs::read_to_string(&cfg_path)
+            .with_context(|| format!("failed to read config {}", cfg_path.display()))?;
+        let cfg: BenchTomlConfig = toml::from_str(&raw)
+            .with_context(|| format!("failed to parse TOML {}", cfg_path.display()))?;
+        (cfg.logical_services_list, cfg.replicas_per_service_list)
+    } else {
+        (None, None)
+    };
     let fp = BenchFingerprint {
         topologies: args.topologies.as_str(),
         policies: args.policies.as_str(),
@@ -324,6 +337,8 @@ fn run_fingerprint(args: &BenchArgs) -> anyhow::Result<u64> {
         load_levels: args.load_levels.as_str(),
         logical_services: args.logical_services,
         replicas_per_service: args.replicas_per_service,
+        logical_services_list,
+        replicas_per_service_list,
         duration_ticks: args.duration_ticks,
         warmup_ticks: args.warmup_ticks,
         drain_ticks: args.drain_ticks,
@@ -388,7 +403,11 @@ struct BenchTomlConfig {
     #[serde(default)]
     logical_services: Option<usize>,
     #[serde(default)]
+    logical_services_list: Option<Vec<usize>>,
+    #[serde(default)]
     replicas_per_service: Option<usize>,
+    #[serde(default)]
+    replicas_per_service_list: Option<Vec<usize>>,
     duration_ticks: u64,
     warmup_ticks: u64,
     drain_ticks: u64,
@@ -442,6 +461,7 @@ fn apply_bench_config(mut args: BenchArgs, path: &Path) -> anyhow::Result<BenchA
         .collect::<Vec<_>>()
         .join(",");
     args.seeds = cfg.seeds;
+    // Note: scaling lists are handled in bench() expansion; keep scalar defaults here.
     if let Some(v) = cfg.logical_services {
         args.logical_services = v;
     }
@@ -610,6 +630,26 @@ fn bench(args: BenchArgs) -> anyhow::Result<()> {
         }
     }
 
+    // If a TOML config was used, allow optional scaling lists embedded in the file.
+    // This preserves backwards compatibility with scalar logical_services/replicas_per_service.
+    let (logical_services_values, replicas_values) = if let Some(cfg_path) = args.config.clone() {
+        let raw = std::fs::read_to_string(&cfg_path)
+            .with_context(|| format!("failed to read config {}", cfg_path.display()))?;
+        let cfg: BenchTomlConfig = toml::from_str(&raw)
+            .with_context(|| format!("failed to parse TOML {}", cfg_path.display()))?;
+        let ls = cfg
+            .logical_services_list
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| vec![cfg.logical_services.unwrap_or(args.logical_services)]);
+        let reps = cfg
+            .replicas_per_service_list
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| vec![cfg.replicas_per_service.unwrap_or(args.replicas_per_service)]);
+        (ls, reps)
+    } else {
+        (vec![args.logical_services], vec![args.replicas_per_service])
+    };
+
     let topology_kinds = parse_topologies(&args.topologies)?;
     let policies = parse_policies(&args.policies)?;
     let scenarios = parse_scenarios(&args.scenarios)?;
@@ -617,64 +657,75 @@ fn bench(args: BenchArgs) -> anyhow::Result<()> {
     let mut jobs = Vec::new();
     let mut planned_total: u64 = 0;
     for kind in topology_kinds {
-        for seed in 1..=args.seeds {
-            let topology = BasicTopologyGenerator.generate(&GeneratedTopologyConfig {
-                kind,
-                logical_services: args.logical_services,
-                replicas_per_service: args.replicas_per_service,
-                seed,
-            });
-            for policy in &policies {
-                for scenario in &scenarios {
-                    for requests_per_tick in &load_levels {
-                        planned_total += 1;
-                        let service_targets = topology
-                            .logical_services
-                            .iter()
-                            .map(|s| s.id.clone())
-                            .collect::<Vec<_>>();
-                        let topo_key = format!(
-                            "{:?}:ls{}:rep{}:seed{}",
-                            kind, args.logical_services, args.replicas_per_service, seed
-                        );
-                        let exp_key = format!(
-                            "{topo_key}|{}|{}|load={}|seed={}",
-                            policy_name(*policy),
-                            scenario,
-                            requests_per_tick,
-                            seed
-                        );
-                        let exp_hash = stable_fnv1a_64(exp_key.as_bytes());
-                        if let (Some(idx), Some(cnt)) = (args.shard_index, args.shard_count) {
-                            if exp_hash % cnt != idx {
-                                continue;
+        for &logical_services in &logical_services_values {
+            for &replicas_per_service in &replicas_values {
+                for seed in 1..=args.seeds {
+                    let mut topology = BasicTopologyGenerator.generate(&GeneratedTopologyConfig {
+                        kind,
+                        logical_services,
+                        replicas_per_service,
+                        seed,
+                    });
+                    topology.name = format!(
+                        "{:?}-ls{}-rep{}-seed{}",
+                        kind, logical_services, replicas_per_service, seed
+                    )
+                    .to_lowercase()
+                    .replace(' ', "-");
+                    for policy in &policies {
+                        for scenario in &scenarios {
+                            for requests_per_tick in &load_levels {
+                                planned_total += 1;
+                                let service_targets = topology
+                                    .logical_services
+                                    .iter()
+                                    .map(|s| s.id.clone())
+                                    .collect::<Vec<_>>();
+                                let topo_key = format!(
+                                    "{:?}:ls{}:rep{}:seed{}",
+                                    kind, logical_services, replicas_per_service, seed
+                                );
+                                let exp_key = format!(
+                                    "{topo_key}|{}|{}|load={}|seed={}",
+                                    policy_name(*policy),
+                                    scenario,
+                                    requests_per_tick,
+                                    seed
+                                );
+                                let exp_hash = stable_fnv1a_64(exp_key.as_bytes());
+                                if let (Some(idx), Some(cnt)) = (args.shard_index, args.shard_count)
+                                {
+                                    if exp_hash % cnt != idx {
+                                        continue;
+                                    }
+                                }
+                                // Include the stable hash prefix so that sharding and de-duplication are robust.
+                                let experiment_id = format!(
+                                    "exp-{exp_hash:016x}-{:?}-ls{logical_services}-rep{replicas_per_service}-{}-{}-load-{requests_per_tick}-seed-{seed}",
+                                    kind,
+                                    policy_name(*policy),
+                                    scenario
+                                )
+                                .to_lowercase()
+                                .replace(' ', "-");
+                                let experiment = ExperimentSpec {
+                                    schema_version: "0.1".into(),
+                                    id: ExperimentId::new(experiment_id),
+                                    seed,
+                                    duration_ticks: args.duration_ticks,
+                                    warmup_ticks: args.warmup_ticks,
+                                    drain_ticks: args.drain_ticks,
+                                    policy: policy_name(*policy).into(),
+                                    scenario: scenario.clone(),
+                                    observability_lag_ticks: args.observability_lag_ticks,
+                                    observability_noise: args.observability_noise,
+                                    requests_per_tick: *requests_per_tick,
+                                    source: NodeId::new("gateway-1"),
+                                    targets: service_targets,
+                                };
+                                jobs.push((topology.clone(), experiment, *policy));
                             }
                         }
-                        // Include the stable hash prefix so that sharding and de-duplication are robust.
-                        let experiment_id = format!(
-                            "exp-{exp_hash:016x}-{:?}-{}-{}-load-{requests_per_tick}-seed-{seed}",
-                            kind,
-                            policy_name(*policy),
-                            scenario
-                        )
-                        .to_lowercase()
-                        .replace(' ', "-");
-                        let experiment = ExperimentSpec {
-                            schema_version: "0.1".into(),
-                            id: ExperimentId::new(experiment_id),
-                            seed,
-                            duration_ticks: args.duration_ticks,
-                            warmup_ticks: args.warmup_ticks,
-                            drain_ticks: args.drain_ticks,
-                            policy: policy_name(*policy).into(),
-                            scenario: scenario.clone(),
-                            observability_lag_ticks: args.observability_lag_ticks,
-                            observability_noise: args.observability_noise,
-                            requests_per_tick: *requests_per_tick,
-                            source: NodeId::new("gateway-1"),
-                            targets: service_targets,
-                        };
-                        jobs.push((topology.clone(), experiment, *policy));
                     }
                 }
             }

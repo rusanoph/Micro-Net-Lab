@@ -395,9 +395,16 @@ impl<G: GraphBackend> InMemorySimulationEngine<G> {
 
         let active_at_end = state.active_requests.len() as u64;
         let measurement_ticks = drain_start.saturating_sub(experiment.warmup_ticks);
+        let policy_variant = experiment.policy.clone();
+        let policy_family = if policy_variant.starts_with("score") {
+            "score-v1".to_string()
+        } else {
+            policy_variant.clone()
+        };
         let summary = SimulationSummary::from_samples(
             experiment.id.to_string(),
-            policy.name().to_string(),
+            policy_family,
+            policy_variant,
             self.topology.name.clone(),
             experiment.scenario.clone(),
             experiment.seed,

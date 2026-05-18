@@ -20,6 +20,28 @@ cargo run -p micro-net-cli -- bench \
   --out ./bench-results/micro-net-paper-001/shard-0
 ```
 
+## Scaling Experiment (Medium Topology)
+
+This is a reduced cross-product intended to test whether the main effects persist as the graph grows.
+
+```bash
+cargo run -p micro-net-cli -- bench \
+  --config ./configs/scaling-001.toml \
+  --parallel 12 \
+  --out ./bench-results/scaling-001-svc10
+```
+
+## Scaling Experiment (Final, One-Shot)
+
+Runs multiple topology sizes and replica counts in one `bench` invocation.
+
+```bash
+cargo run -p micro-net-cli -- bench \
+  --config ./configs/scaling-final-001.toml \
+  --parallel 12 \
+  --out ./bench-results/scaling-final-001
+```
+
 ## Publication Run (No Config, Single Directory)
 
 ```bash

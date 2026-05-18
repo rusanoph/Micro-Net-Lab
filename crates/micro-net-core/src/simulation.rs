@@ -89,8 +89,14 @@ pub struct SimulationSummary {
     pub schema_version: String,
     /// Experiment id.
     pub experiment_id: String,
-    /// Policy name.
+    /// Policy identifier used for grouping (full variant name).
     pub policy: String,
+    /// Policy family identifier (e.g. `score-v1`).
+    #[serde(default)]
+    pub policy_family: String,
+    /// Policy variant identifier (e.g. `score-local+network`).
+    #[serde(default)]
+    pub policy_variant: String,
     /// Topology name.
     pub topology: String,
     /// Scenario name.
@@ -132,7 +138,8 @@ impl SimulationSummary {
     /// Builds a summary from observed counters and latency samples.
     pub fn from_samples(
         experiment_id: String,
-        policy: String,
+        policy_family: String,
+        policy_variant: String,
         topology: String,
         scenario: String,
         seed: u64,
@@ -163,7 +170,9 @@ impl SimulationSummary {
         Self {
             schema_version: "0.1".to_string(),
             experiment_id,
-            policy,
+            policy: policy_variant.clone(),
+            policy_family,
+            policy_variant,
             topology,
             scenario,
             seed,
