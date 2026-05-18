@@ -1,0 +1,13 @@
+[package]
+name = "micro-net-drivers"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+micro-net-core = { path = "../micro-net-core" }
+anyhow.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true

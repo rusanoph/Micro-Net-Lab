@@ -1,0 +1,24 @@
+[package]
+name = "micro-net-cli"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "micro-net"
+path = "src/main.rs"
+
+[dependencies]
+micro-net-core = { path = "../micro-net-core" }
+micro-net-petgraph = { path = "../micro-net-petgraph" }
+micro-net-algorithms = { path = "../micro-net-algorithms" }
+micro-net-drivers = { path = "../micro-net-drivers" }
+micro-net-executor = { path = "../micro-net-executor" }
+micro-net-report = { path = "../micro-net-report" }
+anyhow.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+rayon.workspace = true

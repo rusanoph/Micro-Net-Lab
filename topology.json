@@ -1,0 +1,1817 @@
+{
+  "schema_version": "0.1",
+  "name": "ring-services-3-replicas-3",
+  "logical_services": [
+    {
+      "id": "payments",
+      "dependencies": [
+        {
+          "id": "payments:cache",
+          "target": {
+            "type": "cache",
+            "id": "service-cache"
+          },
+          "kind": "cache_lookup",
+          "call_mode": "synchronous",
+          "probability": 0.85,
+          "base_operation_latency_ms": 1.0
+        },
+        {
+          "id": "payments:db",
+          "target": {
+            "type": "database",
+            "id": "primary-db"
+          },
+          "kind": "database_read",
+          "call_mode": "synchronous",
+          "probability": 0.55,
+          "base_operation_latency_ms": 5.0
+        },
+        {
+          "id": "payments:broker",
+          "target": {
+            "type": "broker",
+            "id": "events-broker"
+          },
+          "kind": "broker_publish",
+          "call_mode": "asynchronous",
+          "probability": 0.2,
+          "base_operation_latency_ms": 2.0
+        }
+      ]
+    },
+    {
+      "id": "orders",
+      "dependencies": [
+        {
+          "id": "orders:cache",
+          "target": {
+            "type": "cache",
+            "id": "service-cache"
+          },
+          "kind": "cache_lookup",
+          "call_mode": "synchronous",
+          "probability": 0.85,
+          "base_operation_latency_ms": 1.0
+        },
+        {
+          "id": "orders:db",
+          "target": {
+            "type": "database",
+            "id": "primary-db"
+          },
+          "kind": "database_read",
+          "call_mode": "synchronous",
+          "probability": 0.55,
+          "base_operation_latency_ms": 5.0
+        },
+        {
+          "id": "orders:broker",
+          "target": {
+            "type": "broker",
+            "id": "events-broker"
+          },
+          "kind": "broker_publish",
+          "call_mode": "asynchronous",
+          "probability": 0.2,
+          "base_operation_latency_ms": 2.0
+        }
+      ]
+    },
+    {
+      "id": "analytics",
+      "dependencies": [
+        {
+          "id": "analytics:cache",
+          "target": {
+            "type": "cache",
+            "id": "service-cache"
+          },
+          "kind": "cache_lookup",
+          "call_mode": "synchronous",
+          "probability": 0.85,
+          "base_operation_latency_ms": 1.0
+        },
+        {
+          "id": "analytics:db",
+          "target": {
+            "type": "database",
+            "id": "primary-db"
+          },
+          "kind": "database_read",
+          "call_mode": "synchronous",
+          "probability": 0.55,
+          "base_operation_latency_ms": 5.0
+        },
+        {
+          "id": "analytics:broker",
+          "target": {
+            "type": "broker",
+            "id": "events-broker"
+          },
+          "kind": "broker_publish",
+          "call_mode": "asynchronous",
+          "probability": 0.2,
+          "base_operation_latency_ms": 2.0
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "gateway-1",
+      "label": "gateway-1",
+      "zone": "zone-a",
+      "host": "host-gateway",
+      "kind": {
+        "type": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "db-main",
+      "label": "db-main",
+      "zone": "zone-a",
+      "host": "host-db",
+      "kind": {
+        "type": "database",
+        "spec": {
+          "logical_resource": "primary-db",
+          "engine": "postgres",
+          "max_connections": 500,
+          "base_query_latency_ms": 8.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "cache-a",
+      "label": "cache-a",
+      "zone": "zone-a",
+      "host": "host-cache-a",
+      "kind": {
+        "type": "cache",
+        "spec": {
+          "logical_resource": "service-cache",
+          "max_memory_mb": 1024,
+          "base_hit_rate": 0.94,
+          "base_latency_ms": 1.5
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "cache-b",
+      "label": "cache-b",
+      "zone": "zone-b",
+      "host": "host-cache-b",
+      "kind": {
+        "type": "cache",
+        "spec": {
+          "logical_resource": "service-cache",
+          "max_memory_mb": 1024,
+          "base_hit_rate": 0.9,
+          "base_latency_ms": 1.5
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "cache-c",
+      "label": "cache-c",
+      "zone": "zone-c",
+      "host": "host-cache-c",
+      "kind": {
+        "type": "cache",
+        "spec": {
+          "logical_resource": "service-cache",
+          "max_memory_mb": 1024,
+          "base_hit_rate": 0.86,
+          "base_latency_ms": 1.5
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "broker-main",
+      "label": "broker-main",
+      "zone": "zone-b",
+      "host": "host-broker",
+      "kind": {
+        "type": "broker",
+        "spec": {
+          "logical_resource": "events-broker",
+          "partitions": 12,
+          "base_lag_ms": 5.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "payments-1",
+      "label": "payments-1",
+      "zone": "zone-a",
+      "host": "host-payments-1",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "payments",
+          "instance_id": "payments-1",
+          "replica_id": 1,
+          "base_capacity_rps": 110.0,
+          "base_processing_latency_ms": 5.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "payments-2",
+      "label": "payments-2",
+      "zone": "zone-b",
+      "host": "host-payments-2",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "payments",
+          "instance_id": "payments-2",
+          "replica_id": 2,
+          "base_capacity_rps": 120.0,
+          "base_processing_latency_ms": 6.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "payments-3",
+      "label": "payments-3",
+      "zone": "zone-c",
+      "host": "shared-host-payments",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "payments",
+          "instance_id": "payments-3",
+          "replica_id": 3,
+          "base_capacity_rps": 130.0,
+          "base_processing_latency_ms": 7.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "orders-1",
+      "label": "orders-1",
+      "zone": "zone-a",
+      "host": "host-orders-1",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "orders",
+          "instance_id": "orders-1",
+          "replica_id": 1,
+          "base_capacity_rps": 110.0,
+          "base_processing_latency_ms": 5.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "orders-2",
+      "label": "orders-2",
+      "zone": "zone-b",
+      "host": "host-orders-2",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "orders",
+          "instance_id": "orders-2",
+          "replica_id": 2,
+          "base_capacity_rps": 120.0,
+          "base_processing_latency_ms": 6.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "orders-3",
+      "label": "orders-3",
+      "zone": "zone-c",
+      "host": "shared-host-orders",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "orders",
+          "instance_id": "orders-3",
+          "replica_id": 3,
+          "base_capacity_rps": 130.0,
+          "base_processing_latency_ms": 7.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "analytics-1",
+      "label": "analytics-1",
+      "zone": "zone-a",
+      "host": "host-analytics-1",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "analytics",
+          "instance_id": "analytics-1",
+          "replica_id": 1,
+          "base_capacity_rps": 110.0,
+          "base_processing_latency_ms": 5.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "analytics-2",
+      "label": "analytics-2",
+      "zone": "zone-b",
+      "host": "host-analytics-2",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "analytics",
+          "instance_id": "analytics-2",
+          "replica_id": 2,
+          "base_capacity_rps": 120.0,
+          "base_processing_latency_ms": 6.0
+        }
+      },
+      "metadata": {}
+    },
+    {
+      "id": "analytics-3",
+      "label": "analytics-3",
+      "zone": "zone-c",
+      "host": "shared-host-analytics",
+      "kind": {
+        "type": "service",
+        "spec": {
+          "logical_service": "analytics",
+          "instance_id": "analytics-3",
+          "replica_id": 3,
+          "base_capacity_rps": 130.0,
+          "base_processing_latency_ms": 7.0
+        }
+      },
+      "metadata": {}
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-1",
+      "from": "gateway-1",
+      "to": "payments-1",
+      "latency_ms": 3.3637923846133426,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.3637923846133426,
+      "metadata": {}
+    },
+    {
+      "id": "e-2",
+      "from": "payments-1",
+      "to": "gateway-1",
+      "latency_ms": 3.3637923846133426,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.3637923846133426,
+      "metadata": {}
+    },
+    {
+      "id": "e-3",
+      "from": "payments-1",
+      "to": "db-main",
+      "latency_ms": 8.850826223017453,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 8.850826223017453,
+      "metadata": {}
+    },
+    {
+      "id": "e-4",
+      "from": "db-main",
+      "to": "payments-1",
+      "latency_ms": 7.282549208569559,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 7.282549208569559,
+      "metadata": {}
+    },
+    {
+      "id": "e-5",
+      "from": "payments-1",
+      "to": "cache-a",
+      "latency_ms": 1.6273605211973403,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.6273605211973403,
+      "metadata": {}
+    },
+    {
+      "id": "e-6",
+      "from": "cache-a",
+      "to": "payments-1",
+      "latency_ms": 1.2885938791411826,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.2885938791411826,
+      "metadata": {}
+    },
+    {
+      "id": "e-7",
+      "from": "payments-1",
+      "to": "cache-b",
+      "latency_ms": 2.549958870290325,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.549958870290325,
+      "metadata": {}
+    },
+    {
+      "id": "e-8",
+      "from": "cache-b",
+      "to": "payments-1",
+      "latency_ms": 2.70804055959791,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.70804055959791,
+      "metadata": {}
+    },
+    {
+      "id": "e-9",
+      "from": "payments-1",
+      "to": "cache-c",
+      "latency_ms": 3.2038727671756266,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.2038727671756266,
+      "metadata": {}
+    },
+    {
+      "id": "e-10",
+      "from": "cache-c",
+      "to": "payments-1",
+      "latency_ms": 3.171248780802857,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.171248780802857,
+      "metadata": {}
+    },
+    {
+      "id": "e-11",
+      "from": "payments-1",
+      "to": "broker-main",
+      "latency_ms": 4.954341057525357,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.954341057525357,
+      "metadata": {}
+    },
+    {
+      "id": "e-12",
+      "from": "broker-main",
+      "to": "payments-1",
+      "latency_ms": 6.027467481360276,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 6.027467481360276,
+      "metadata": {}
+    },
+    {
+      "id": "e-13",
+      "from": "gateway-1",
+      "to": "payments-2",
+      "latency_ms": 3.8036063440975476,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.8036063440975476,
+      "metadata": {}
+    },
+    {
+      "id": "e-14",
+      "from": "payments-2",
+      "to": "gateway-1",
+      "latency_ms": 3.8036063440975476,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.8036063440975476,
+      "metadata": {}
+    },
+    {
+      "id": "e-15",
+      "from": "payments-2",
+      "to": "db-main",
+      "latency_ms": 10.970970806748426,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 10.970970806748426,
+      "metadata": {}
+    },
+    {
+      "id": "e-16",
+      "from": "db-main",
+      "to": "payments-2",
+      "latency_ms": 9.878935710973003,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 9.878935710973003,
+      "metadata": {}
+    },
+    {
+      "id": "e-17",
+      "from": "payments-2",
+      "to": "cache-a",
+      "latency_ms": 3.1287984865007754,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.1287984865007754,
+      "metadata": {}
+    },
+    {
+      "id": "e-18",
+      "from": "cache-a",
+      "to": "payments-2",
+      "latency_ms": 2.579136409263178,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.579136409263178,
+      "metadata": {}
+    },
+    {
+      "id": "e-19",
+      "from": "payments-2",
+      "to": "cache-b",
+      "latency_ms": 1.5753931466007072,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.5753931466007072,
+      "metadata": {}
+    },
+    {
+      "id": "e-20",
+      "from": "cache-b",
+      "to": "payments-2",
+      "latency_ms": 1.1717622909006256,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.1717622909006256,
+      "metadata": {}
+    },
+    {
+      "id": "e-21",
+      "from": "payments-2",
+      "to": "cache-c",
+      "latency_ms": 2.844052334920976,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.844052334920976,
+      "metadata": {}
+    },
+    {
+      "id": "e-22",
+      "from": "cache-c",
+      "to": "payments-2",
+      "latency_ms": 2.4763910040885873,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.4763910040885873,
+      "metadata": {}
+    },
+    {
+      "id": "e-23",
+      "from": "payments-2",
+      "to": "broker-main",
+      "latency_ms": 4.618233337049959,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.618233337049959,
+      "metadata": {}
+    },
+    {
+      "id": "e-24",
+      "from": "broker-main",
+      "to": "payments-2",
+      "latency_ms": 5.28172306587036,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 5.28172306587036,
+      "metadata": {}
+    },
+    {
+      "id": "e-25",
+      "from": "gateway-1",
+      "to": "payments-3",
+      "latency_ms": 3.399375977124081,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.399375977124081,
+      "metadata": {}
+    },
+    {
+      "id": "e-26",
+      "from": "payments-3",
+      "to": "gateway-1",
+      "latency_ms": 3.399375977124081,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.399375977124081,
+      "metadata": {}
+    },
+    {
+      "id": "e-27",
+      "from": "payments-3",
+      "to": "db-main",
+      "latency_ms": 11.035216465998772,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 11.035216465998772,
+      "metadata": {}
+    },
+    {
+      "id": "e-28",
+      "from": "db-main",
+      "to": "payments-3",
+      "latency_ms": 10.915362319888754,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 10.915362319888754,
+      "metadata": {}
+    },
+    {
+      "id": "e-29",
+      "from": "payments-3",
+      "to": "cache-a",
+      "latency_ms": 2.6618215504086233,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.6618215504086233,
+      "metadata": {}
+    },
+    {
+      "id": "e-30",
+      "from": "cache-a",
+      "to": "payments-3",
+      "latency_ms": 3.239775910644658,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.239775910644658,
+      "metadata": {}
+    },
+    {
+      "id": "e-31",
+      "from": "payments-3",
+      "to": "cache-b",
+      "latency_ms": 3.159428656272891,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.159428656272891,
+      "metadata": {}
+    },
+    {
+      "id": "e-32",
+      "from": "cache-b",
+      "to": "payments-3",
+      "latency_ms": 3.072006786694132,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.072006786694132,
+      "metadata": {}
+    },
+    {
+      "id": "e-33",
+      "from": "payments-3",
+      "to": "cache-c",
+      "latency_ms": 1.6821221065932423,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.6821221065932423,
+      "metadata": {}
+    },
+    {
+      "id": "e-34",
+      "from": "cache-c",
+      "to": "payments-3",
+      "latency_ms": 1.6742552687676366,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.6742552687676366,
+      "metadata": {}
+    },
+    {
+      "id": "e-35",
+      "from": "payments-3",
+      "to": "broker-main",
+      "latency_ms": 4.399366865738632,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.399366865738632,
+      "metadata": {}
+    },
+    {
+      "id": "e-36",
+      "from": "broker-main",
+      "to": "payments-3",
+      "latency_ms": 4.810543205855648,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.810543205855648,
+      "metadata": {}
+    },
+    {
+      "id": "e-37",
+      "from": "gateway-1",
+      "to": "orders-1",
+      "latency_ms": 2.4384115090847036,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 2.4384115090847036,
+      "metadata": {}
+    },
+    {
+      "id": "e-38",
+      "from": "orders-1",
+      "to": "gateway-1",
+      "latency_ms": 2.4384115090847036,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 2.4384115090847036,
+      "metadata": {}
+    },
+    {
+      "id": "e-39",
+      "from": "orders-1",
+      "to": "db-main",
+      "latency_ms": 8.29619205722973,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 8.29619205722973,
+      "metadata": {}
+    },
+    {
+      "id": "e-40",
+      "from": "db-main",
+      "to": "orders-1",
+      "latency_ms": 8.088416493296087,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 8.088416493296087,
+      "metadata": {}
+    },
+    {
+      "id": "e-41",
+      "from": "orders-1",
+      "to": "cache-a",
+      "latency_ms": 1.4243356666381641,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.4243356666381641,
+      "metadata": {}
+    },
+    {
+      "id": "e-42",
+      "from": "cache-a",
+      "to": "orders-1",
+      "latency_ms": 1.0656147187671259,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.0656147187671259,
+      "metadata": {}
+    },
+    {
+      "id": "e-43",
+      "from": "orders-1",
+      "to": "cache-b",
+      "latency_ms": 3.281522224851022,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.281522224851022,
+      "metadata": {}
+    },
+    {
+      "id": "e-44",
+      "from": "cache-b",
+      "to": "orders-1",
+      "latency_ms": 3.056122799969614,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.056122799969614,
+      "metadata": {}
+    },
+    {
+      "id": "e-45",
+      "from": "orders-1",
+      "to": "cache-c",
+      "latency_ms": 3.1718801937235837,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.1718801937235837,
+      "metadata": {}
+    },
+    {
+      "id": "e-46",
+      "from": "cache-c",
+      "to": "orders-1",
+      "latency_ms": 3.222717446583232,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.222717446583232,
+      "metadata": {}
+    },
+    {
+      "id": "e-47",
+      "from": "orders-1",
+      "to": "broker-main",
+      "latency_ms": 4.169213034914643,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.169213034914643,
+      "metadata": {}
+    },
+    {
+      "id": "e-48",
+      "from": "broker-main",
+      "to": "orders-1",
+      "latency_ms": 7.328384694913003,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 7.328384694913003,
+      "metadata": {}
+    },
+    {
+      "id": "e-49",
+      "from": "gateway-1",
+      "to": "orders-2",
+      "latency_ms": 3.8742008162402137,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.8742008162402137,
+      "metadata": {}
+    },
+    {
+      "id": "e-50",
+      "from": "orders-2",
+      "to": "gateway-1",
+      "latency_ms": 3.8742008162402137,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.8742008162402137,
+      "metadata": {}
+    },
+    {
+      "id": "e-51",
+      "from": "orders-2",
+      "to": "db-main",
+      "latency_ms": 10.227063911849534,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 10.227063911849534,
+      "metadata": {}
+    },
+    {
+      "id": "e-52",
+      "from": "db-main",
+      "to": "orders-2",
+      "latency_ms": 9.459005830856132,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 9.459005830856132,
+      "metadata": {}
+    },
+    {
+      "id": "e-53",
+      "from": "orders-2",
+      "to": "cache-a",
+      "latency_ms": 3.264938149549689,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.264938149549689,
+      "metadata": {}
+    },
+    {
+      "id": "e-54",
+      "from": "cache-a",
+      "to": "orders-2",
+      "latency_ms": 2.9837883883672616,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.9837883883672616,
+      "metadata": {}
+    },
+    {
+      "id": "e-55",
+      "from": "orders-2",
+      "to": "cache-b",
+      "latency_ms": 1.9644390760587693,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.9644390760587693,
+      "metadata": {}
+    },
+    {
+      "id": "e-56",
+      "from": "cache-b",
+      "to": "orders-2",
+      "latency_ms": 1.2308298051659532,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.2308298051659532,
+      "metadata": {}
+    },
+    {
+      "id": "e-57",
+      "from": "orders-2",
+      "to": "cache-c",
+      "latency_ms": 3.023159345249432,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.023159345249432,
+      "metadata": {}
+    },
+    {
+      "id": "e-58",
+      "from": "cache-c",
+      "to": "orders-2",
+      "latency_ms": 2.7663247915426155,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.7663247915426155,
+      "metadata": {}
+    },
+    {
+      "id": "e-59",
+      "from": "orders-2",
+      "to": "broker-main",
+      "latency_ms": 5.768315651226822,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 5.768315651226822,
+      "metadata": {}
+    },
+    {
+      "id": "e-60",
+      "from": "broker-main",
+      "to": "orders-2",
+      "latency_ms": 4.540284038709583,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.540284038709583,
+      "metadata": {}
+    },
+    {
+      "id": "e-61",
+      "from": "gateway-1",
+      "to": "orders-3",
+      "latency_ms": 2.2753472486443447,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 2.2753472486443447,
+      "metadata": {}
+    },
+    {
+      "id": "e-62",
+      "from": "orders-3",
+      "to": "gateway-1",
+      "latency_ms": 2.2753472486443447,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 2.2753472486443447,
+      "metadata": {}
+    },
+    {
+      "id": "e-63",
+      "from": "orders-3",
+      "to": "db-main",
+      "latency_ms": 12.832291073339901,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 12.832291073339901,
+      "metadata": {}
+    },
+    {
+      "id": "e-64",
+      "from": "db-main",
+      "to": "orders-3",
+      "latency_ms": 13.178337982045065,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 13.178337982045065,
+      "metadata": {}
+    },
+    {
+      "id": "e-65",
+      "from": "orders-3",
+      "to": "cache-a",
+      "latency_ms": 3.109672493357051,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.109672493357051,
+      "metadata": {}
+    },
+    {
+      "id": "e-66",
+      "from": "cache-a",
+      "to": "orders-3",
+      "latency_ms": 2.855823364246315,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.855823364246315,
+      "metadata": {}
+    },
+    {
+      "id": "e-67",
+      "from": "orders-3",
+      "to": "cache-b",
+      "latency_ms": 2.4232578291488,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.4232578291488,
+      "metadata": {}
+    },
+    {
+      "id": "e-68",
+      "from": "cache-b",
+      "to": "orders-3",
+      "latency_ms": 3.0177608779012486,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.0177608779012486,
+      "metadata": {}
+    },
+    {
+      "id": "e-69",
+      "from": "orders-3",
+      "to": "cache-c",
+      "latency_ms": 1.8709894031296697,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.8709894031296697,
+      "metadata": {}
+    },
+    {
+      "id": "e-70",
+      "from": "cache-c",
+      "to": "orders-3",
+      "latency_ms": 1.3475054215539508,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.3475054215539508,
+      "metadata": {}
+    },
+    {
+      "id": "e-71",
+      "from": "orders-3",
+      "to": "broker-main",
+      "latency_ms": 4.144144004937443,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.144144004937443,
+      "metadata": {}
+    },
+    {
+      "id": "e-72",
+      "from": "broker-main",
+      "to": "orders-3",
+      "latency_ms": 6.070015577523779,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 6.070015577523779,
+      "metadata": {}
+    },
+    {
+      "id": "e-73",
+      "from": "gateway-1",
+      "to": "analytics-1",
+      "latency_ms": 2.3499523444212937,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 2.3499523444212937,
+      "metadata": {}
+    },
+    {
+      "id": "e-74",
+      "from": "analytics-1",
+      "to": "gateway-1",
+      "latency_ms": 2.3499523444212937,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 2.3499523444212937,
+      "metadata": {}
+    },
+    {
+      "id": "e-75",
+      "from": "analytics-1",
+      "to": "db-main",
+      "latency_ms": 6.903866187048538,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 6.903866187048538,
+      "metadata": {}
+    },
+    {
+      "id": "e-76",
+      "from": "db-main",
+      "to": "analytics-1",
+      "latency_ms": 7.459303840996521,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 7.459303840996521,
+      "metadata": {}
+    },
+    {
+      "id": "e-77",
+      "from": "analytics-1",
+      "to": "cache-a",
+      "latency_ms": 1.2321082405712687,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.2321082405712687,
+      "metadata": {}
+    },
+    {
+      "id": "e-78",
+      "from": "cache-a",
+      "to": "analytics-1",
+      "latency_ms": 1.3137719960692842,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.3137719960692842,
+      "metadata": {}
+    },
+    {
+      "id": "e-79",
+      "from": "analytics-1",
+      "to": "cache-b",
+      "latency_ms": 2.796554249854719,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.796554249854719,
+      "metadata": {}
+    },
+    {
+      "id": "e-80",
+      "from": "cache-b",
+      "to": "analytics-1",
+      "latency_ms": 3.0589000197618854,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.0589000197618854,
+      "metadata": {}
+    },
+    {
+      "id": "e-81",
+      "from": "analytics-1",
+      "to": "cache-c",
+      "latency_ms": 3.245600639796054,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.245600639796054,
+      "metadata": {}
+    },
+    {
+      "id": "e-82",
+      "from": "cache-c",
+      "to": "analytics-1",
+      "latency_ms": 2.827663991530709,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.827663991530709,
+      "metadata": {}
+    },
+    {
+      "id": "e-83",
+      "from": "analytics-1",
+      "to": "broker-main",
+      "latency_ms": 6.418791036556716,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 6.418791036556716,
+      "metadata": {}
+    },
+    {
+      "id": "e-84",
+      "from": "broker-main",
+      "to": "analytics-1",
+      "latency_ms": 6.494834924907023,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 6.494834924907023,
+      "metadata": {}
+    },
+    {
+      "id": "e-85",
+      "from": "gateway-1",
+      "to": "analytics-2",
+      "latency_ms": 3.8833308399157005,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.8833308399157005,
+      "metadata": {}
+    },
+    {
+      "id": "e-86",
+      "from": "analytics-2",
+      "to": "gateway-1",
+      "latency_ms": 3.8833308399157005,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.8833308399157005,
+      "metadata": {}
+    },
+    {
+      "id": "e-87",
+      "from": "analytics-2",
+      "to": "db-main",
+      "latency_ms": 10.864563392990199,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 10.864563392990199,
+      "metadata": {}
+    },
+    {
+      "id": "e-88",
+      "from": "db-main",
+      "to": "analytics-2",
+      "latency_ms": 9.26322097940724,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 9.26322097940724,
+      "metadata": {}
+    },
+    {
+      "id": "e-89",
+      "from": "analytics-2",
+      "to": "cache-a",
+      "latency_ms": 2.8608429264850126,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.8608429264850126,
+      "metadata": {}
+    },
+    {
+      "id": "e-90",
+      "from": "cache-a",
+      "to": "analytics-2",
+      "latency_ms": 2.5939445924811024,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.5939445924811024,
+      "metadata": {}
+    },
+    {
+      "id": "e-91",
+      "from": "analytics-2",
+      "to": "cache-b",
+      "latency_ms": 1.996707151068473,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.996707151068473,
+      "metadata": {}
+    },
+    {
+      "id": "e-92",
+      "from": "cache-b",
+      "to": "analytics-2",
+      "latency_ms": 1.3469541952643993,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.3469541952643993,
+      "metadata": {}
+    },
+    {
+      "id": "e-93",
+      "from": "analytics-2",
+      "to": "cache-c",
+      "latency_ms": 3.17863587215518,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.17863587215518,
+      "metadata": {}
+    },
+    {
+      "id": "e-94",
+      "from": "cache-c",
+      "to": "analytics-2",
+      "latency_ms": 2.4080886791273546,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.4080886791273546,
+      "metadata": {}
+    },
+    {
+      "id": "e-95",
+      "from": "analytics-2",
+      "to": "broker-main",
+      "latency_ms": 4.419128472974517,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.419128472974517,
+      "metadata": {}
+    },
+    {
+      "id": "e-96",
+      "from": "broker-main",
+      "to": "analytics-2",
+      "latency_ms": 4.9876409244877795,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 4.9876409244877795,
+      "metadata": {}
+    },
+    {
+      "id": "e-97",
+      "from": "gateway-1",
+      "to": "analytics-3",
+      "latency_ms": 3.6452528473944703,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.6452528473944703,
+      "metadata": {}
+    },
+    {
+      "id": "e-98",
+      "from": "analytics-3",
+      "to": "gateway-1",
+      "latency_ms": 3.6452528473944703,
+      "capacity_rps": 10000.0,
+      "error_rate": 0.0,
+      "cost": 3.6452528473944703,
+      "metadata": {}
+    },
+    {
+      "id": "e-99",
+      "from": "analytics-3",
+      "to": "db-main",
+      "latency_ms": 12.323207338602685,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 12.323207338602685,
+      "metadata": {}
+    },
+    {
+      "id": "e-100",
+      "from": "db-main",
+      "to": "analytics-3",
+      "latency_ms": 12.143488324271864,
+      "capacity_rps": 5000.0,
+      "error_rate": 0.0,
+      "cost": 12.143488324271864,
+      "metadata": {}
+    },
+    {
+      "id": "e-101",
+      "from": "analytics-3",
+      "to": "cache-a",
+      "latency_ms": 2.573247445227696,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.573247445227696,
+      "metadata": {}
+    },
+    {
+      "id": "e-102",
+      "from": "cache-a",
+      "to": "analytics-3",
+      "latency_ms": 3.2646742981230825,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.2646742981230825,
+      "metadata": {}
+    },
+    {
+      "id": "e-103",
+      "from": "analytics-3",
+      "to": "cache-b",
+      "latency_ms": 3.106775941912126,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 3.106775941912126,
+      "metadata": {}
+    },
+    {
+      "id": "e-104",
+      "from": "cache-b",
+      "to": "analytics-3",
+      "latency_ms": 2.4325426659220284,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 2.4325426659220284,
+      "metadata": {}
+    },
+    {
+      "id": "e-105",
+      "from": "analytics-3",
+      "to": "cache-c",
+      "latency_ms": 1.621753805612464,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.621753805612464,
+      "metadata": {}
+    },
+    {
+      "id": "e-106",
+      "from": "cache-c",
+      "to": "analytics-3",
+      "latency_ms": 1.840893153328152,
+      "capacity_rps": 8000.0,
+      "error_rate": 0.0,
+      "cost": 1.840893153328152,
+      "metadata": {}
+    },
+    {
+      "id": "e-107",
+      "from": "analytics-3",
+      "to": "broker-main",
+      "latency_ms": 7.198343486864561,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 7.198343486864561,
+      "metadata": {}
+    },
+    {
+      "id": "e-108",
+      "from": "broker-main",
+      "to": "analytics-3",
+      "latency_ms": 5.763606582692734,
+      "capacity_rps": 6000.0,
+      "error_rate": 0.0,
+      "cost": 5.763606582692734,
+      "metadata": {}
+    },
+    {
+      "id": "e-109",
+      "from": "payments-1",
+      "to": "payments-2",
+      "latency_ms": 3.9615693897779978,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.9615693897779978,
+      "metadata": {}
+    },
+    {
+      "id": "e-110",
+      "from": "payments-2",
+      "to": "payments-1",
+      "latency_ms": 3.02184735485795,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.02184735485795,
+      "metadata": {}
+    },
+    {
+      "id": "e-111",
+      "from": "payments-2",
+      "to": "payments-3",
+      "latency_ms": 3.7573761549859968,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.7573761549859968,
+      "metadata": {}
+    },
+    {
+      "id": "e-112",
+      "from": "payments-3",
+      "to": "payments-2",
+      "latency_ms": 3.5474183405423707,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.5474183405423707,
+      "metadata": {}
+    },
+    {
+      "id": "e-113",
+      "from": "payments-3",
+      "to": "orders-1",
+      "latency_ms": 3.732515915253281,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.732515915253281,
+      "metadata": {}
+    },
+    {
+      "id": "e-114",
+      "from": "orders-1",
+      "to": "payments-3",
+      "latency_ms": 4.90079020890926,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 4.90079020890926,
+      "metadata": {}
+    },
+    {
+      "id": "e-115",
+      "from": "orders-1",
+      "to": "orders-2",
+      "latency_ms": 3.8959403676330764,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.8959403676330764,
+      "metadata": {}
+    },
+    {
+      "id": "e-116",
+      "from": "orders-2",
+      "to": "orders-1",
+      "latency_ms": 4.766940190267118,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 4.766940190267118,
+      "metadata": {}
+    },
+    {
+      "id": "e-117",
+      "from": "orders-2",
+      "to": "orders-3",
+      "latency_ms": 3.46591380390105,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.46591380390105,
+      "metadata": {}
+    },
+    {
+      "id": "e-118",
+      "from": "orders-3",
+      "to": "orders-2",
+      "latency_ms": 4.352654321249522,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 4.352654321249522,
+      "metadata": {}
+    },
+    {
+      "id": "e-119",
+      "from": "orders-3",
+      "to": "analytics-1",
+      "latency_ms": 3.152459560957563,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.152459560957563,
+      "metadata": {}
+    },
+    {
+      "id": "e-120",
+      "from": "analytics-1",
+      "to": "orders-3",
+      "latency_ms": 4.910238047840215,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 4.910238047840215,
+      "metadata": {}
+    },
+    {
+      "id": "e-121",
+      "from": "analytics-1",
+      "to": "analytics-2",
+      "latency_ms": 3.6558658317124104,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.6558658317124104,
+      "metadata": {}
+    },
+    {
+      "id": "e-122",
+      "from": "analytics-2",
+      "to": "analytics-1",
+      "latency_ms": 3.1356674373313678,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.1356674373313678,
+      "metadata": {}
+    },
+    {
+      "id": "e-123",
+      "from": "analytics-2",
+      "to": "analytics-3",
+      "latency_ms": 3.907551999638137,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.907551999638137,
+      "metadata": {}
+    },
+    {
+      "id": "e-124",
+      "from": "analytics-3",
+      "to": "analytics-2",
+      "latency_ms": 4.654160821345656,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 4.654160821345656,
+      "metadata": {}
+    },
+    {
+      "id": "e-125",
+      "from": "analytics-3",
+      "to": "payments-1",
+      "latency_ms": 3.269787237709859,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.269787237709859,
+      "metadata": {}
+    },
+    {
+      "id": "e-126",
+      "from": "payments-1",
+      "to": "analytics-3",
+      "latency_ms": 3.8729877989431163,
+      "capacity_rps": 4000.0,
+      "error_rate": 0.0,
+      "cost": 3.8729877989431163,
+      "metadata": {}
+    }
+  ],
+  "dependency_bindings": [
+    {
+      "caller": "payments-1",
+      "dependency": "payments:cache",
+      "targets": [
+        "cache-a"
+      ]
+    },
+    {
+      "caller": "payments-1",
+      "dependency": "payments:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "payments-1",
+      "dependency": "payments:broker",
+      "targets": [
+        "broker-main"
+      ]
+    },
+    {
+      "caller": "payments-2",
+      "dependency": "payments:cache",
+      "targets": [
+        "cache-b"
+      ]
+    },
+    {
+      "caller": "payments-2",
+      "dependency": "payments:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "payments-2",
+      "dependency": "payments:broker",
+      "targets": [
+        "broker-main"
+      ]
+    },
+    {
+      "caller": "payments-3",
+      "dependency": "payments:cache",
+      "targets": [
+        "cache-c"
+      ]
+    },
+    {
+      "caller": "payments-3",
+      "dependency": "payments:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "payments-3",
+      "dependency": "payments:broker",
+      "targets": [
+        "broker-main"
+      ]
+    },
+    {
+      "caller": "orders-1",
+      "dependency": "orders:cache",
+      "targets": [
+        "cache-a"
+      ]
+    },
+    {
+      "caller": "orders-1",
+      "dependency": "orders:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "orders-1",
+      "dependency": "orders:broker",
+      "targets": [
+        "broker-main"
+      ]
+    },
+    {
+      "caller": "orders-2",
+      "dependency": "orders:cache",
+      "targets": [
+        "cache-b"
+      ]
+    },
+    {
+      "caller": "orders-2",
+      "dependency": "orders:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "orders-2",
+      "dependency": "orders:broker",
+      "targets": [
+        "broker-main"
+      ]
+    },
+    {
+      "caller": "orders-3",
+      "dependency": "orders:cache",
+      "targets": [
+        "cache-c"
+      ]
+    },
+    {
+      "caller": "orders-3",
+      "dependency": "orders:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "orders-3",
+      "dependency": "orders:broker",
+      "targets": [
+        "broker-main"
+      ]
+    },
+    {
+      "caller": "analytics-1",
+      "dependency": "analytics:cache",
+      "targets": [
+        "cache-a"
+      ]
+    },
+    {
+      "caller": "analytics-1",
+      "dependency": "analytics:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "analytics-1",
+      "dependency": "analytics:broker",
+      "targets": [
+        "broker-main"
+      ]
+    },
+    {
+      "caller": "analytics-2",
+      "dependency": "analytics:cache",
+      "targets": [
+        "cache-b"
+      ]
+    },
+    {
+      "caller": "analytics-2",
+      "dependency": "analytics:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "analytics-2",
+      "dependency": "analytics:broker",
+      "targets": [
+        "broker-main"
+      ]
+    },
+    {
+      "caller": "analytics-3",
+      "dependency": "analytics:cache",
+      "targets": [
+        "cache-c"
+      ]
+    },
+    {
+      "caller": "analytics-3",
+      "dependency": "analytics:db",
+      "targets": [
+        "db-main"
+      ]
+    },
+    {
+      "caller": "analytics-3",
+      "dependency": "analytics:broker",
+      "targets": [
+        "broker-main"
+      ]
+    }
+  ]
+}
