@@ -1,0 +1,16 @@
+[package]
+name = "micro-net-io"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+authors.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+csv.workspace = true
+plotters.workspace = true
+serde.workspace = true
+micro-net-core = { path = "../micro-net-core" }
+serde_json.workspace = true

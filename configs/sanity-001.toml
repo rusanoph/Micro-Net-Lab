@@ -1,0 +1,25 @@
+schema_version = "0.1"
+experiment_config_version = "sanity-001"
+
+# Small, fast run for verifying that the pipeline works end-to-end.
+topologies = ["star", "ring"]
+policies = ["random", "least-inflight", "score"]
+scenarios = ["healthy", "db-overloaded"]
+load_levels = [1, 5, 10]
+seeds = 2
+
+logical_services = 3
+replicas_per_service = 3
+
+duration_ticks = 400
+warmup_ticks = 50
+drain_ticks = 50
+
+observability_lag_ticks = 5
+observability_noise = 0.02
+
+trace = "none"
+artifacts = "aggregate"
+progress_ms = 500
+
+out = "./bench-results/sanity-001"

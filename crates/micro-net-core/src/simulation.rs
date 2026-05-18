@@ -33,8 +33,18 @@ pub struct ExperimentSpec {
     pub seed: u64,
     /// Number of simulation ticks to run.
     pub duration_ticks: Tick,
+    /// Warmup ticks before measurement.
+    pub warmup_ticks: Tick,
+    /// Drain ticks at the end with no new request generation.
+    pub drain_ticks: Tick,
     /// Policy name used by the CLI/runner.
     pub policy: String,
+    /// Scenario name used to inject synthetic degradation.
+    pub scenario: String,
+    /// Observability lag used for policy-visible runtime metrics.
+    pub observability_lag_ticks: Tick,
+    /// Observability noise standard deviation (rough research-friendly scalar).
+    pub observability_noise: f64,
     /// Requests generated per tick.
     pub requests_per_tick: u64,
     /// Source node used by the simple constant workload.
@@ -81,6 +91,10 @@ pub struct SimulationSummary {
     pub experiment_id: String,
     /// Policy name.
     pub policy: String,
+    /// Topology name.
+    pub topology: String,
+    /// Scenario name.
+    pub scenario: String,
     /// Seed.
     pub seed: u64,
     /// Total created logical requests.
@@ -91,6 +105,12 @@ pub struct SimulationSummary {
     pub failed: u64,
     /// Requests still active at the end of the run.
     pub active_at_end: u64,
+    /// Warmup ticks before the measurement window.
+    pub warmup_ticks: Tick,
+    /// Drain ticks at the end of the run.
+    pub drain_ticks: Tick,
+    /// Requests generated per tick.
+    pub requests_per_tick: u64,
     /// Success rate in `[0, 1]`.
     pub success_rate: f64,
     /// Error rate in `[0, 1]`.
@@ -113,8 +133,13 @@ impl SimulationSummary {
     pub fn from_samples(
         experiment_id: String,
         policy: String,
+        topology: String,
+        scenario: String,
         seed: u64,
         duration_ticks: Tick,
+        warmup_ticks: Tick,
+        drain_ticks: Tick,
+        requests_per_tick: u64,
         created: u64,
         completed: u64,
         failed: u64,
@@ -139,11 +164,16 @@ impl SimulationSummary {
             schema_version: "0.1".to_string(),
             experiment_id,
             policy,
+            topology,
+            scenario,
             seed,
             created,
             completed,
             failed,
             active_at_end,
+            warmup_ticks,
+            drain_ticks,
+            requests_per_tick,
             success_rate: if total_finished == 0 {
                 0.0
             } else {

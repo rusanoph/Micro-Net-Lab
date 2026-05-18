@@ -75,6 +75,16 @@ impl TopologyGenerator for BasicTopologyGenerator {
 
     fn generate(&self, config: &GeneratedTopologyConfig) -> TopologySpec {
         let mut rng = ChaCha8Rng::seed_from_u64(config.seed);
+        let mut edge_seq = 0usize;
+        let mut add_edge =
+            |edges: &mut Vec<Edge>, from: &NodeId, to: &NodeId, latency: f64, capacity: f64| {
+                edge_seq += 1;
+                let mut edge =
+                    Edge::new(format!("e-{edge_seq}"), from.clone(), to.clone(), latency);
+                edge.capacity_rps = capacity;
+                edge.cost = latency;
+                edges.push(edge);
+            };
         let services = Self::service_names(config.logical_services.max(1));
         let zones = [
             ZoneId::new("zone-a"),
@@ -95,6 +105,22 @@ impl TopologyGenerator for BasicTopologyGenerator {
             kind: NodeKind::Gateway,
             metadata: BTreeMap::new(),
         });
+
+        let routers = [
+            NodeId::new("router-zone-a"),
+            NodeId::new("router-zone-b"),
+            NodeId::new("router-zone-c"),
+        ];
+        for (idx, router) in routers.iter().enumerate() {
+            nodes.push(Node {
+                id: router.clone(),
+                label: router.to_string(),
+                zone: Some(zones[idx].clone()),
+                host: Some(HostId::new(format!("host-router-{idx}"))),
+                kind: NodeKind::Gateway,
+                metadata: BTreeMap::from([("role".into(), "router".into())]),
+            });
+        }
 
         let db_main = NodeId::new("db-main");
         let cache_a = NodeId::new("cache-a");
@@ -150,34 +176,49 @@ impl TopologyGenerator for BasicTopologyGenerator {
         let mut service_nodes = Vec::new();
         for service_name in &services {
             let service_id = LogicalServiceId::new(service_name.clone());
+            let next_service = services
+                .iter()
+                .position(|name| name == service_name)
+                .and_then(|idx| services.get(idx + 1))
+                .map(|name| LogicalServiceId::new(name.clone()));
+            let mut dependencies = Vec::new();
+            if let Some(target) = next_service.clone() {
+                dependencies.push(LogicalDependency {
+                    id: LogicalDependencyId::new(format!("{service_name}:next-service")),
+                    target: DependencyTarget::LogicalService(target),
+                    kind: DependencyKind::ServiceCall,
+                    call_mode: CallMode::Synchronous,
+                    probability: 0.40,
+                    base_operation_latency_ms: 2.0,
+                });
+            }
+            dependencies.push(LogicalDependency {
+                id: LogicalDependencyId::new(format!("{service_name}:cache")),
+                target: DependencyTarget::Cache(LogicalResourceId::new("service-cache")),
+                kind: DependencyKind::CacheLookup,
+                call_mode: CallMode::Synchronous,
+                probability: 0.85,
+                base_operation_latency_ms: 1.0,
+            });
+            dependencies.push(LogicalDependency {
+                id: LogicalDependencyId::new(format!("{service_name}:db")),
+                target: DependencyTarget::Database(LogicalResourceId::new("primary-db")),
+                kind: DependencyKind::DatabaseRead,
+                call_mode: CallMode::Synchronous,
+                probability: 0.55,
+                base_operation_latency_ms: 5.0,
+            });
+            dependencies.push(LogicalDependency {
+                id: LogicalDependencyId::new(format!("{service_name}:broker")),
+                target: DependencyTarget::Broker(LogicalResourceId::new("events-broker")),
+                kind: DependencyKind::BrokerPublish,
+                call_mode: CallMode::Asynchronous,
+                probability: 0.20,
+                base_operation_latency_ms: 2.0,
+            });
             logical_services.push(LogicalServiceSpec {
                 id: service_id.clone(),
-                dependencies: vec![
-                    LogicalDependency {
-                        id: LogicalDependencyId::new(format!("{service_name}:cache")),
-                        target: DependencyTarget::Cache(LogicalResourceId::new("service-cache")),
-                        kind: DependencyKind::CacheLookup,
-                        call_mode: CallMode::Synchronous,
-                        probability: 0.85,
-                        base_operation_latency_ms: 1.0,
-                    },
-                    LogicalDependency {
-                        id: LogicalDependencyId::new(format!("{service_name}:db")),
-                        target: DependencyTarget::Database(LogicalResourceId::new("primary-db")),
-                        kind: DependencyKind::DatabaseRead,
-                        call_mode: CallMode::Synchronous,
-                        probability: 0.55,
-                        base_operation_latency_ms: 5.0,
-                    },
-                    LogicalDependency {
-                        id: LogicalDependencyId::new(format!("{service_name}:broker")),
-                        target: DependencyTarget::Broker(LogicalResourceId::new("events-broker")),
-                        kind: DependencyKind::BrokerPublish,
-                        call_mode: CallMode::Asynchronous,
-                        probability: 0.20,
-                        base_operation_latency_ms: 2.0,
-                    },
-                ],
+                dependencies,
             });
 
             for replica in 1..=config.replicas_per_service.max(1) {
@@ -205,6 +246,25 @@ impl TopologyGenerator for BasicTopologyGenerator {
                     metadata: BTreeMap::new(),
                 });
 
+                let router = match zone.as_str() {
+                    "zone-a" => routers[0].clone(),
+                    "zone-b" => routers[1].clone(),
+                    _ => routers[2].clone(),
+                };
+                bindings.push(DependencyBinding {
+                    caller: node_id.clone(),
+                    dependency: LogicalDependencyId::new(format!("{service_name}:next-service")),
+                    targets: next_service
+                        .as_ref()
+                        .map(|target| {
+                            topology_service_candidates(
+                                &services,
+                                target,
+                                config.replicas_per_service.max(1),
+                            )
+                        })
+                        .unwrap_or_default(),
+                });
                 let cache_target = match zone.as_str() {
                     "zone-a" => cache_a.clone(),
                     "zone-b" => cache_b.clone(),
@@ -225,25 +285,58 @@ impl TopologyGenerator for BasicTopologyGenerator {
                     dependency: LogicalDependencyId::new(format!("{service_name}:broker")),
                     targets: vec![broker.clone()],
                 });
+
+                add_edge(
+                    &mut edges,
+                    &node_id,
+                    &router,
+                    1.5 + rng.gen_range(0.0..1.0),
+                    8_000.0,
+                );
+                add_edge(
+                    &mut edges,
+                    &router,
+                    &node_id,
+                    1.5 + rng.gen_range(0.0..1.0),
+                    8_000.0,
+                );
             }
         }
 
-        let mut edge_seq = 0usize;
-        let mut add_edge =
-            |edges: &mut Vec<Edge>, from: &NodeId, to: &NodeId, latency: f64, capacity: f64| {
-                edge_seq += 1;
-                let mut edge =
-                    Edge::new(format!("e-{edge_seq}"), from.clone(), to.clone(), latency);
-                edge.capacity_rps = capacity;
-                edge.cost = latency;
-                edges.push(edge);
-            };
+        let (gateway_anchor, router_anchor) = match config.kind {
+            TopologyKind::Star => (routers[0].clone(), routers[0].clone()),
+            TopologyKind::Ring => (routers[0].clone(), routers[1].clone()),
+            TopologyKind::FullMesh => (routers[0].clone(), routers[2].clone()),
+            TopologyKind::RandomSparse => (routers[0].clone(), routers[1].clone()),
+        };
+        add_edge(
+            &mut edges,
+            &gateway,
+            &gateway_anchor,
+            1.0 + rng.gen_range(0.0..1.0),
+            10_000.0,
+        );
+        add_edge(
+            &mut edges,
+            &gateway_anchor,
+            &gateway,
+            1.0 + rng.gen_range(0.0..1.0),
+            10_000.0,
+        );
+
+        connect_router_shape(&mut edges, &routers, config.kind, &mut rng, &router_anchor);
+        connect_resources(
+            &mut edges,
+            &routers,
+            &router_anchor,
+            &db_main,
+            [&cache_a, &cache_b, &cache_c],
+            &broker,
+            config.kind,
+            &mut rng,
+        );
 
         for service in &service_nodes {
-            let jitter = rng.gen_range(0.0..2.0);
-            add_edge(&mut edges, &gateway, service, 2.0 + jitter, 10_000.0);
-            add_edge(&mut edges, service, &gateway, 2.0 + jitter, 10_000.0);
-
             let zone_factor = match nodes
                 .iter()
                 .find(|n| &n.id == service)
@@ -255,31 +348,69 @@ impl TopologyGenerator for BasicTopologyGenerator {
                 Some("zone-c") => 1.8,
                 _ => 1.5,
             };
+            let router = match resolve_zone(&nodes, service).as_ref().map(|z| z.as_str()) {
+                Some("zone-a") => &routers[0],
+                Some("zone-b") => &routers[1],
+                _ => &routers[2],
+            };
             add_edge(
                 &mut edges,
                 service,
+                router,
+                1.2 + rng.gen_range(0.0..0.8),
+                8_000.0,
+            );
+            add_edge(
+                &mut edges,
+                router,
+                service,
+                1.2 + rng.gen_range(0.0..0.8),
+                8_000.0,
+            );
+
+            let db_route_penalty = match config.kind {
+                TopologyKind::Star => 4.5,
+                TopologyKind::Ring => 6.5,
+                TopologyKind::FullMesh => 3.0,
+                TopologyKind::RandomSparse => 7.0,
+            };
+            let cache_route_penalty = match config.kind {
+                TopologyKind::Star => 2.2,
+                TopologyKind::Ring => 3.5,
+                TopologyKind::FullMesh => 1.6,
+                TopologyKind::RandomSparse => 4.0,
+            };
+            let broker_route_penalty = match config.kind {
+                TopologyKind::Star => 3.5,
+                TopologyKind::Ring => 5.5,
+                TopologyKind::FullMesh => 2.5,
+                TopologyKind::RandomSparse => 6.0,
+            };
+            add_edge(
+                &mut edges,
+                router,
                 &db_main,
-                6.0 * zone_factor + rng.gen_range(0.0..3.0),
+                db_route_penalty * zone_factor + rng.gen_range(0.0..2.0),
                 5_000.0,
             );
             add_edge(
                 &mut edges,
                 &db_main,
-                service,
-                6.0 * zone_factor + rng.gen_range(0.0..3.0),
+                router,
+                db_route_penalty * zone_factor + rng.gen_range(0.0..2.0),
                 5_000.0,
             );
 
             for cache in [&cache_a, &cache_b, &cache_c] {
                 let same_zone_bonus =
-                    if resolve_zone(&nodes, service) == resolve_zone(&nodes, cache) {
-                        1.0
+                    if resolve_zone(&nodes, router) == resolve_zone(&nodes, cache) {
+                        0.9
                     } else {
-                        2.4
+                        cache_route_penalty
                     };
                 add_edge(
                     &mut edges,
-                    service,
+                    router,
                     cache,
                     same_zone_bonus + rng.gen_range(0.0..1.0),
                     8_000.0,
@@ -287,83 +418,25 @@ impl TopologyGenerator for BasicTopologyGenerator {
                 add_edge(
                     &mut edges,
                     cache,
-                    service,
+                    router,
                     same_zone_bonus + rng.gen_range(0.0..1.0),
                     8_000.0,
                 );
             }
             add_edge(
                 &mut edges,
-                service,
+                router,
                 &broker,
-                4.0 + rng.gen_range(0.0..4.0),
+                broker_route_penalty + rng.gen_range(0.0..3.0),
                 6_000.0,
             );
             add_edge(
                 &mut edges,
                 &broker,
-                service,
-                4.0 + rng.gen_range(0.0..4.0),
+                router,
+                broker_route_penalty + rng.gen_range(0.0..3.0),
                 6_000.0,
             );
-        }
-
-        match config.kind {
-            TopologyKind::Star => {}
-            TopologyKind::Ring => {
-                for pair in service_nodes.windows(2) {
-                    add_edge(
-                        &mut edges,
-                        &pair[0],
-                        &pair[1],
-                        3.0 + rng.gen_range(0.0..2.0),
-                        4_000.0,
-                    );
-                    add_edge(
-                        &mut edges,
-                        &pair[1],
-                        &pair[0],
-                        3.0 + rng.gen_range(0.0..2.0),
-                        4_000.0,
-                    );
-                }
-                if service_nodes.len() > 2 {
-                    let first = service_nodes.first().unwrap();
-                    let last = service_nodes.last().unwrap();
-                    add_edge(
-                        &mut edges,
-                        last,
-                        first,
-                        3.0 + rng.gen_range(0.0..2.0),
-                        4_000.0,
-                    );
-                    add_edge(
-                        &mut edges,
-                        first,
-                        last,
-                        3.0 + rng.gen_range(0.0..2.0),
-                        4_000.0,
-                    );
-                }
-            }
-            TopologyKind::FullMesh => {
-                for from in &service_nodes {
-                    for to in &service_nodes {
-                        if from != to {
-                            add_edge(&mut edges, from, to, 4.0 + rng.gen_range(0.0..3.0), 3_000.0);
-                        }
-                    }
-                }
-            }
-            TopologyKind::RandomSparse => {
-                for from in &service_nodes {
-                    for to in &service_nodes {
-                        if from != to && rng.gen_bool(0.22) {
-                            add_edge(&mut edges, from, to, 4.0 + rng.gen_range(0.0..8.0), 2_500.0);
-                        }
-                    }
-                }
-            }
         }
 
         TopologySpec {
@@ -386,4 +459,116 @@ fn resolve_zone(nodes: &[Node], id: &NodeId) -> Option<ZoneId> {
         .iter()
         .find(|n| &n.id == id)
         .and_then(|n| n.zone.clone())
+}
+
+fn topology_service_candidates(
+    services: &[String],
+    logical_service: &LogicalServiceId,
+    replicas_per_service: usize,
+) -> Vec<NodeId> {
+    services
+        .iter()
+        .find(|name| LogicalServiceId::new((*name).clone()) == *logical_service)
+        .map(|name| {
+            (1..=replicas_per_service.max(1))
+                .map(|replica| NodeId::new(format!("{name}-{replica}")))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn connect_router_shape(
+    edges: &mut Vec<Edge>,
+    routers: &[NodeId; 3],
+    kind: TopologyKind,
+    rng: &mut ChaCha8Rng,
+    router_anchor: &NodeId,
+) {
+    match kind {
+        TopologyKind::Star => {
+            for router in routers {
+                if router != router_anchor {
+                    push_weighted_edge(edges, router_anchor, router, 1.5, 8_000.0, rng);
+                    push_weighted_edge(edges, router, router_anchor, 1.5, 8_000.0, rng);
+                }
+            }
+        }
+        TopologyKind::Ring => {
+            for pair in routers.windows(2) {
+                push_weighted_edge(edges, &pair[0], &pair[1], 2.2, 4_000.0, rng);
+                push_weighted_edge(edges, &pair[1], &pair[0], 2.2, 4_000.0, rng);
+            }
+            push_weighted_edge(edges, &routers[2], &routers[0], 2.2, 4_000.0, rng);
+            push_weighted_edge(edges, &routers[0], &routers[2], 2.2, 4_000.0, rng);
+        }
+        TopologyKind::FullMesh => {
+            for from in routers {
+                for to in routers {
+                    if from != to {
+                        push_weighted_edge(edges, from, to, 1.4, 6_000.0, rng);
+                    }
+                }
+            }
+        }
+        TopologyKind::RandomSparse => {
+            for from in routers {
+                for to in routers {
+                    if from != to && rng.gen_bool(0.55) {
+                        push_weighted_edge(edges, from, to, 2.5, 3_500.0, rng);
+                    }
+                }
+            }
+            push_weighted_edge(edges, &routers[0], &routers[1], 2.1, 3_500.0, rng);
+            push_weighted_edge(edges, &routers[1], &routers[2], 2.1, 3_500.0, rng);
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn connect_resources(
+    edges: &mut Vec<Edge>,
+    routers: &[NodeId; 3],
+    router_anchor: &NodeId,
+    db_main: &NodeId,
+    caches: [&NodeId; 3],
+    broker: &NodeId,
+    kind: TopologyKind,
+    rng: &mut ChaCha8Rng,
+) {
+    let resource_router = match kind {
+        TopologyKind::Star => router_anchor.clone(),
+        TopologyKind::Ring => routers[2].clone(),
+        TopologyKind::FullMesh => routers[1].clone(),
+        TopologyKind::RandomSparse => routers[0].clone(),
+    };
+
+    push_weighted_edge(edges, router_anchor, db_main, 3.5, 5_000.0, rng);
+    push_weighted_edge(edges, db_main, router_anchor, 3.5, 5_000.0, rng);
+
+    for cache in caches {
+        push_weighted_edge(edges, &resource_router, cache, 1.2, 8_000.0, rng);
+        push_weighted_edge(edges, cache, &resource_router, 1.2, 8_000.0, rng);
+    }
+
+    push_weighted_edge(edges, &resource_router, broker, 2.8, 6_000.0, rng);
+    push_weighted_edge(edges, broker, &resource_router, 2.8, 6_000.0, rng);
+}
+
+fn push_weighted_edge(
+    edges: &mut Vec<Edge>,
+    from: &NodeId,
+    to: &NodeId,
+    base: f64,
+    capacity: f64,
+    rng: &mut ChaCha8Rng,
+) {
+    let mut edge = Edge::new(
+        format!("e-{}-{}-{}", edges.len(), from, to),
+        from.clone(),
+        to.clone(),
+        base + rng.gen_range(0.0..1.2),
+    );
+    edge.capacity_rps = capacity;
+    edge.cost = edge.latency_ms;
+    edges.push(edge);
 }

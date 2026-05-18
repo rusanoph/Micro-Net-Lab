@@ -85,8 +85,22 @@ pub enum TraceEvent {
     },
 }
 
+/// Trace verbosity level requested by an event sink.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TraceLevel {
+    /// No tracing. Engine should avoid trace-only work in hot paths.
+    None,
+    /// Full tracing (default).
+    Full,
+}
+
 /// Side-effect boundary for trace events.
 pub trait EventSink {
+    /// Requested trace verbosity. Defaults to full tracing.
+    fn trace_level(&self) -> TraceLevel {
+        TraceLevel::Full
+    }
+
     /// Handles one event.
     fn on_event(&mut self, event: &TraceEvent) -> anyhow::Result<()>;
 }
@@ -96,6 +110,10 @@ pub trait EventSink {
 pub struct NoopEventSink;
 
 impl EventSink for NoopEventSink {
+    fn trace_level(&self) -> TraceLevel {
+        TraceLevel::None
+    }
+
     fn on_event(&mut self, _event: &TraceEvent) -> anyhow::Result<()> {
         Ok(())
     }
@@ -109,6 +127,10 @@ pub struct InMemoryTraceSink {
 }
 
 impl EventSink for InMemoryTraceSink {
+    fn trace_level(&self) -> TraceLevel {
+        TraceLevel::Full
+    }
+
     fn on_event(&mut self, event: &TraceEvent) -> anyhow::Result<()> {
         self.events.push(event.clone());
         Ok(())
@@ -128,6 +150,10 @@ impl<W: Write> JsonlTraceSink<W> {
 }
 
 impl<W: Write> EventSink for JsonlTraceSink<W> {
+    fn trace_level(&self) -> TraceLevel {
+        TraceLevel::Full
+    }
+
     fn on_event(&mut self, event: &TraceEvent) -> anyhow::Result<()> {
         serde_json::to_writer(&mut self.writer, event)?;
         self.writer.write_all(b"\n")?;

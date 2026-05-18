@@ -167,4 +167,12 @@ impl ServiceIndex {
             .cloned()
             .unwrap_or_default()
     }
+
+    /// Returns a reference to the candidate list for a logical service.
+    pub fn candidates_ref(&self, service: &LogicalServiceId) -> &[NodeId] {
+        self.by_logical_service
+            .get(service)
+            .map(|v| v.as_slice())
+            .unwrap_or(&[])
+    }
 }

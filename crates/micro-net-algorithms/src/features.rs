@@ -12,7 +12,7 @@ impl Feature for LatencyFeature {
 
     fn value(&self, ctx: &RoutingContext<'_>, request: &Request, candidate: &NodeId) -> f64 {
         ctx.graph
-            .shortest_path(&request.source, candidate)
+            .shortest_path_totals(&request.source, candidate)
             .map(|p| p.total_latency_ms / 100.0)
             .unwrap_or(10.0)
     }
@@ -59,7 +59,7 @@ impl Feature for NetworkCostFeature {
 
     fn value(&self, ctx: &RoutingContext<'_>, request: &Request, candidate: &NodeId) -> f64 {
         ctx.graph
-            .shortest_path(&request.source, candidate)
+            .shortest_path_totals(&request.source, candidate)
             .map(|p| p.total_cost / 100.0)
             .unwrap_or(10.0)
     }
@@ -103,7 +103,7 @@ impl Feature for DownstreamPressureFeature {
                 let runtime = ctx.runtime.node_or_default(&target);
                 let path_penalty = ctx
                     .graph
-                    .shortest_path(candidate, &target)
+                    .shortest_path_totals(candidate, &target)
                     .map(|p| p.total_latency_ms / 100.0)
                     .unwrap_or(1.0);
                 let node_penalty = runtime.utilization

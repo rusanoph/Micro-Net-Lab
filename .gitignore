@@ -3,3 +3,4 @@
 /bench-results
 *.log
 .DS_Store
+.codex

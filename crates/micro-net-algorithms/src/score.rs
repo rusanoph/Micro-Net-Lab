@@ -32,6 +32,54 @@ impl ScorePolicyV1 {
             (Box::new(HostPressureFeature), 0.05),
         ])
     }
+
+    pub fn local_only() -> Self {
+        Self::new(vec![
+            (Box::new(InflightFeature), 0.55),
+            (Box::new(ErrorRateFeature), 0.35),
+            (Box::new(HostPressureFeature), 0.10),
+        ])
+    }
+
+    pub fn local_plus_network() -> Self {
+        Self::new(vec![
+            (Box::new(LatencyFeature), 0.30),
+            (Box::new(InflightFeature), 0.35),
+            (Box::new(ErrorRateFeature), 0.20),
+            (Box::new(NetworkCostFeature), 0.10),
+            (Box::new(HostPressureFeature), 0.05),
+        ])
+    }
+
+    pub fn local_plus_downstream() -> Self {
+        Self::new(vec![
+            (Box::new(LatencyFeature), 0.20),
+            (Box::new(InflightFeature), 0.30),
+            (Box::new(ErrorRateFeature), 0.15),
+            (Box::new(DownstreamPressureFeature), 0.30),
+            (Box::new(HostPressureFeature), 0.05),
+        ])
+    }
+
+    pub fn without_downstream() -> Self {
+        Self::new(vec![
+            (Box::new(LatencyFeature), 0.35),
+            (Box::new(InflightFeature), 0.30),
+            (Box::new(ErrorRateFeature), 0.20),
+            (Box::new(NetworkCostFeature), 0.10),
+            (Box::new(HostPressureFeature), 0.05),
+        ])
+    }
+
+    pub fn without_host_pressure() -> Self {
+        Self::new(vec![
+            (Box::new(LatencyFeature), 0.30),
+            (Box::new(InflightFeature), 0.25),
+            (Box::new(ErrorRateFeature), 0.15),
+            (Box::new(NetworkCostFeature), 0.10),
+            (Box::new(DownstreamPressureFeature), 0.20),
+        ])
+    }
 }
 
 impl Default for ScorePolicyV1 {

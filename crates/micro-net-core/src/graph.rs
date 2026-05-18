@@ -19,6 +19,13 @@ pub struct Path {
     pub total_cost: f64,
 }
 
+/// Path aggregate metrics without allocating node/edge lists.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PathTotals {
+    pub total_latency_ms: f64,
+    pub total_cost: f64,
+}
+
 /// Backend-neutral graph port.
 pub trait GraphBackend: Send + Sync {
     /// Returns a node by stable domain identifier.
@@ -35,6 +42,14 @@ pub trait GraphBackend: Send + Sync {
 
     /// Returns the cheapest path by latency, if it exists.
     fn shortest_path(&self, from: &NodeId, to: &NodeId) -> Option<Path>;
+
+    /// Returns cheapest path aggregate metrics without allocating path vectors.
+    fn shortest_path_totals(&self, from: &NodeId, to: &NodeId) -> Option<PathTotals> {
+        self.shortest_path(from, to).map(|p| PathTotals {
+            total_latency_ms: p.total_latency_ms,
+            total_cost: p.total_cost,
+        })
+    }
 
     /// Returns up to `k` path candidates. Implementations may initially return
     /// only the best path and later evolve into real k-shortest path algorithms.

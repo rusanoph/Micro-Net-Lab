@@ -1,0 +1,46 @@
+schema_version = "0.1"
+# Version tag for the experiment protocol/config. Keep in sync with repo changes.
+experiment_config_version = "paper-001"
+
+topologies = ["star", "ring", "full-mesh", "random-sparse"]
+
+policies = [
+  "random",
+  "round-robin",
+  "least-inflight",
+  "score",
+  "score-local-only",
+  "score-local+network",
+  "score-local+downstream",
+  "score-no-downstream",
+  "score-no-host-pressure",
+]
+
+scenarios = [
+  "healthy",
+  "db-overloaded",
+  "cache-degraded",
+  "broker-lag",
+  "zone-burst",
+  "partial-failure",
+]
+
+load_levels = [1, 5, 10, 25, 50, 100]
+seeds = 50
+
+logical_services = 3
+replicas_per_service = 3
+
+duration_ticks = 12000
+warmup_ticks = 2000
+drain_ticks = 1000
+
+observability_lag_ticks = 10
+observability_noise = 0.03
+
+trace = "none"
+artifacts = "aggregate"
+progress_ms = 1000
+
+# Optional default output directory for non-sharded runs.
+out = "./bench-results/micro-net-paper-001"
