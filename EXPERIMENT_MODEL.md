@@ -370,6 +370,9 @@ The strongest claim is not universal dominance of score routing. The defensible 
 
 Repository: <https://github.com/rusanoph/Micro-Net-Lab>
 
+Publication revision with the final analysis script and documents:
+<https://github.com/rusanoph/Micro-Net-Lab/commit/ea288fd>
+
 Each benchmark run writes metadata including:
 
 - git commit, when available

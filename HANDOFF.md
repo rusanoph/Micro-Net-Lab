@@ -140,6 +140,9 @@ If `git` is missing, `git_commit` is null and simulation correctness is unaffect
 
 Repository: <https://github.com/rusanoph/Micro-Net-Lab>
 
+Publication revision with the final analysis script and documents:
+<https://github.com/rusanoph/Micro-Net-Lab/commit/ea288fd>
+
 A commit cannot contain a reliable link to its own hash because the hash depends on file contents. For publication, cite either:
 
 ```text

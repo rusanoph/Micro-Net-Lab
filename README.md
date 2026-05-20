@@ -15,6 +15,9 @@ The simulator is intentionally not a production service mesh, not a packet-level
 
 GitHub: <https://github.com/rusanoph/Micro-Net-Lab>
 
+Publication revision with the final analysis script and documents:
+<https://github.com/rusanoph/Micro-Net-Lab/commit/ea288fd>
+
 Large benchmark outputs are intentionally not tracked. The CLI records reproducibility metadata for every benchmark run, including the git commit, command line, Rust compiler version, machine information, provider/VM labels, sharding parameters, and config fingerprint.
 
 ## Workspace Layout
