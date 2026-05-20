@@ -1,362 +1,156 @@
-# HANDOFF: micro-net-lab-rs
+# HANDOFF: Micro-Net-Lab
 
-This document captures the architectural decisions and implementation context needed to continue the project in later chats or local development sessions.
+This file summarizes the current project state for future development sessions.
 
-## Project goal
+## Current Goal
 
-Build a Rust research framework for deterministic, tick-based simulation of routing/load-balancing policies in typed microservice topologies.
+Micro-Net-Lab is now a publication-oriented Rust simulation framework for evaluating routing algorithms in microservice topologies with explicit dependency bindings and controlled degradation scenarios.
 
-The framework should support:
-
-```text
-typed graph topology
-topology generators
-workload generation
-failure/pressure modeling
-routing policies
-score features
-metrics
-JSONL trace
-CSV/JSON reports
-N policies × M seeds batch experiments
-future Docker/K8s/Java stub drivers
-future external proxy/router drivers
-future visualization/replay
-```
-
-## Core modeling decisions
-
-### 1. Request abstraction
-
-A request is a logical workload unit, not a TCP packet.
-
-A request may:
+The current paper claim is intentionally narrow:
 
 ```text
-arrive at client/gateway
-target a LogicalService
-be routed to a concrete ServiceInstance
-touch downstream DB/cache/broker/external resources
-complete/fail/timeout
-produce retry behavior in later iterations
+Dependency-aware score routing improves the multi-objective trade-off
+under localized degradation, but it is not universally best on every metric.
 ```
 
-### 2. LogicalService vs ServiceInstance
-
-`LogicalService` is the abstract service name:
+## Important Documents
 
 ```text
-payments
-orders
-analytics
+EXPERIMENT_MODEL_RU_publication_draft.md
+  Main Russian publication draft with final tables and interpretation.
+
+EXPERIMENT_MODEL.md
+  English model/results summary mirroring the Russian draft.
+
+README.md
+  Repository overview and publication workflow.
+
+HELP.md
+  Command cheat sheet.
+
+out/paper/EXPERIMENT_MODEL_RU_review.md
+  Review notes that guided the final paper edits.
 ```
 
-`ServiceInstance` is a concrete replica:
+## Key Experiment Configs
 
 ```text
-payments-1
-payments-2
-payments-3
+configs/sanity-001.toml
+  Lightweight end-to-end check.
+
+configs/paper-001.toml
+  Full small-topology experiment:
+  4 topologies x 9 algorithms x 6 scenarios x 6 loads x 50 seeds.
+
+configs/scaling-001.toml
+  One-shot scaling experiment:
+  topologies x services=[3,10,20] x replicas=[3,5]
+  x selected algorithms x focus scenarios x loads x 50 seeds.
 ```
 
-Routing policies choose concrete `ServiceInstance` candidates for a target `LogicalService`.
-
-If a `LogicalService` has one instance, routing degenerates into a trivial choice. Meaningful routing/load-balancing experiments require multiple replicas for at least some services.
-
-### 3. Logical dependencies vs concrete bindings
-
-This was a key clarification.
-
-All replicas of the same logical service share the same logical dependency profile.
-
-Example:
+## Final Analysis Script
 
 ```text
-payments:
-  depends on service-cache
-  depends on primary-db
-  publishes to events-broker
+scripts/micro_net_analysis_publication.py
 ```
 
-But concrete replicas can have different physical/simulation bindings:
-
-```text
-payments-1 -> cache-a -> db-main through low-latency zone-a path
-payments-2 -> cache-b -> db-main through medium-latency zone-b path
-payments-3 -> cache-c -> db-main through high-latency zone-c path
-```
-
-They can also have different host-level pressure:
-
-```text
-payments-1 on host-a
-payments-2 on host-b
-payments-3 colocated with another replica on shared-host
-```
-
-So dependency-aware routing does **not** mean different business logic per replica. It means that candidates implementing the same logical service can have different concrete runtime environments, paths, resource bindings and pressure.
-
-### 4. Network topology graph vs service dependency graph
-
-There are two conceptual layers:
-
-```text
-Network topology graph:
-  concrete nodes and links, latency/capacity/error/cost.
-
-Service dependency graph/profile:
-  what logical resources/services each service uses.
-```
-
-In the first code, both are represented inside `TopologySpec`, but the concepts are separated through:
-
-```text
-LogicalServiceSpec
-LogicalDependency
-DependencyTarget
-DependencyBinding
-```
-
-### 5. Dependency-aware score
-
-The score policy should compare candidates using both local and downstream features:
-
-```text
-latency
-inflight
-error_rate
-network_cost
-host_pressure
-downstream_pressure
-```
-
-The first implementation has `ScorePolicyV1` with explainable `CandidateScoreExplanation` and `FeatureContribution` payloads in `RouteChosen` events.
-
-## Workspace crates
-
-```text
-micro-net-core
-```
-
-Pure domain model and traits. Must not depend on Petgraph/Tokio/Docker/K8s/WebSocket/UI.
-
-```text
-micro-net-petgraph
-```
-
-First graph backend implementation and topology generators. Keeps `NodeIndex`/`EdgeIndex` internal.
-
-```text
-micro-net-algorithms
-```
-
-Built-in routing policies and features:
-
-```text
-RandomPolicy
-RoundRobinPolicy
-LeastInflightPolicy
-ScorePolicyV1
-LatencyFeature
-InflightFeature
-ErrorRateFeature
-NetworkCostFeature
-DownstreamPressureFeature
-HostPressureFeature
-```
-
-```text
-micro-net-drivers
-```
-
-`InMemorySimulationEngine` for deterministic tick-based experiments.
-
-```text
-micro-net-executor
-```
-
-Sequential/Rayon batch helpers.
-
-```text
-micro-net-report
-```
-
-JSON/CSV report writers.
-
-```text
-micro-net-cli
-```
-
-CLI binary `micro-net`.
-
-## Current CLI
-
-Generate topology:
+Expected invocation:
 
 ```bash
-cargo run -p micro-net-cli -- generate-topology \
-  --kind ring \
-  --logical-services 3 \
-  --replicas-per-service 3 \
-  --seed 42 \
-  --out topology.json
+python3 scripts/micro_net_analysis_publication.py \
+  --input ./bench-results/vm/micro-net-paper-001/aggregate.csv \
+  --input ./bench-results/vm/scaling-001/aggregate.csv \
+  --out-dir ./out/publication
 ```
 
-Run one experiment:
-
-```bash
-cargo run -p micro-net-cli -- run \
-  --topology topology.json \
-  --policy score \
-  --seed 42 \
-  --duration-ticks 100 \
-  --requests-per-tick 5 \
-  --out runs/score-001
-```
-
-Run batch:
-
-```bash
-cargo run -p micro-net-cli -- bench \
-  --topologies star,ring,full-mesh,random-sparse \
-  --policies random,round-robin,least-inflight,score \
-  --seeds 3 \
-  --parallel 4 \
-  --out bench-results
-```
-
-## Artifacts
-
-Single run:
+Important outputs:
 
 ```text
-experiment.json
-topology.json
-trace.jsonl
-summary.json
-metrics.csv
+out/publication/publication_tables.md
+out/publication/global_policy_summary_with_ci.csv
+out/publication/scenario_focus_best_score_vs_baseline.csv
+out/publication/pareto_counts.csv
+out/publication/figures/
 ```
 
-Batch run:
+## Current Final Results
+
+Small-topology macro summary:
 
 ```text
-aggregate.json
-aggregate.csv
-experiments/<experiment-id>/...
+score-v1 family: error=0.02699, p95=44.92 ms, throughput_ratio=0.9730
+round-robin:      error=0.08314, p95=46.18 ms, throughput_ratio=0.9169
+random:           error=0.08832, p95=46.15 ms, throughput_ratio=0.9117
+least-inflight:   error=0.10810, p95=44.35 ms, throughput_ratio=0.8919
 ```
 
-Every JSON artifact has `schema_version = "0.1"` where applicable.
-
-## Extension points
-
-Add new topology:
+Scaling macro summary:
 
 ```text
-implement TopologyGenerator
+score-local+network:    error=0.02205, p95=50.20 ms, throughput_ratio=0.9779
+score-no-host-pressure: error=0.02387, p95=49.37 ms, throughput_ratio=0.9761
+round-robin:            error=0.13650, p95=51.59 ms, throughput_ratio=0.8635
+random:                 error=0.15460, p95=51.52 ms, throughput_ratio=0.8454
+least-inflight:         error=0.19260, p95=50.31 ms, throughput_ratio=0.8074
 ```
 
-Add new policy:
+Localized degradation, best score variant vs `random`:
 
 ```text
-implement RoutingPolicy
+small partial-failure: score-v1 family, error delta=-85.33%, p95 delta=-2.908%
+small zone-burst:      score-v1 family, error delta=-81.73%, p95 delta=-1.937%
+scaling partial-failure: score-local+network, error delta=-87.84%, p95 delta=-3.227%
+scaling zone-burst:      score-local+network, error delta=-87.13%, p95 delta=-1.733%
 ```
 
-Add new score feature:
+Pareto counts:
 
 ```text
-implement Feature
+small:   score-v1 family on Pareto front in 144/144 contexts
+scaling: score-no-host-pressure in 213/216, score-local+network in 180/216
 ```
 
-Add new metric:
+## Interpretation Rules
+
+- Do not claim that score routing is universally best.
+- Treat `paper-001` score rows as score-family results because old artifacts collapsed score variants into `score-v1`.
+- Use `scaling-001` for claims about concrete score variants.
+- Do not interpret p95 without error rate and throughput ratio.
+- `least-inflight` is a useful negative result: low p95 can coincide with worse reliability and throughput.
+
+## Reproducibility
+
+The CLI writes run metadata with:
 
 ```text
-implement MetricCollector
+git commit
+command line
+rustc -Vv
+uname
+lscpu
+provider/vm type
+parallelism
+shard index/count
+config fingerprint
 ```
 
-Add new graph backend:
+If `git` is missing, `git_commit` is null and simulation correctness is unaffected, but reproducibility metadata is weaker.
+
+## Commit / Repository Link
+
+Repository: <https://github.com/rusanoph/Micro-Net-Lab>
+
+A commit cannot contain a reliable link to its own hash because the hash depends on file contents. For publication, cite either:
 
 ```text
-implement GraphBackend
+the exact commit printed by git after the final commit
 ```
 
-Add Docker/K8s/stub execution:
+or use the run metadata `git_commit` captured by the CLI for the dataset-producing run.
 
-```text
-add new SimulationDriver-style crate/adapter without changing core domain model
-```
+## Next Work
 
-## Next implementation steps
-
-1. Run locally:
-
-```bash
-cargo fmt
-cargo test --workspace
-```
-
-2. Fix compiler issues if any. The generation environment did not have `cargo`, so tests could not be run there.
-
-3. Add EWMA policy.
-
-4. Add YAML config:
-
-```bash
-micro-net run --config experiment.yaml
-```
-
-5. Add explicit failure injectors:
-
-```text
-BackendSlowdown
-BackendPartialFailure
-DbPressure
-CacheDegradation
-BrokerLag
-NetworkDegradation
-RetryStorm
-```
-
-6. Add real metric collectors:
-
-```text
-node_timeseries.csv
-edge_timeseries.csv
-route_decisions.csv
-```
-
-7. Improve graph algorithms:
-
-```text
-real k-shortest paths
-edge utilization
-path-aware link capacity
-```
-
-8. Add property/golden tests:
-
-```text
-same seed => same result
-inflight never below zero
-completed + failed + active_at_end == created, except explicitly dropped requests
-generated graph shape invariants
-score explainability invariants
-```
-
-9. Add Docker/K8s/Java stub driver later, keeping the in-memory engine as the fast research baseline.
-
-## Research guardrails
-
-Do not drift into packet-level networking in the MVP. The first version is an abstract discrete-event simulator where latency/error/pressure/capacity are modeled by parameters and synthetic scenarios.
-
-The priority is:
-
-```text
-correct boundaries
-reproducibility
-traceability
-pluggability
-explainable score decisions
-comparable experiment outputs
-```
-
-not production-grade networking fidelity.
+- Add production-grade baselines: power-of-two choices, EWMA latency, locality-aware routing, outlier detection.
+- Add sensitivity analysis for pressure coefficient, wave period, observability lag, and noise.
+- Add bursty/diurnal workload profiles.
+- Optionally validate a small scenario against containerized stub services.

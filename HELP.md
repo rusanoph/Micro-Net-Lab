@@ -1,6 +1,22 @@
-# Commands
+# Command Cheat Sheet
 
-## Sanity Check (Lightweight)
+Run commands from the repository root.
+
+## Build
+
+```bash
+cargo build --workspace
+cargo test --workspace
+```
+
+Release build for CPU-heavy benchmarks:
+
+```bash
+export RUSTFLAGS="-C target-cpu=native"
+cargo build --release -p micro-net-cli
+```
+
+## Lightweight Sanity Check
 
 ```bash
 cargo run -p micro-net-cli -- bench \
@@ -9,64 +25,56 @@ cargo run -p micro-net-cli -- bench \
   --out ./bench-results/sanity-001
 ```
 
-## Publication Run (TOML Config + Sharding Example)
+## Full Publication Run
 
 ```bash
-cargo run -p micro-net-cli -- bench \
+PARALLEL="$(nproc)"
+
+./target/release/micro-net bench \
   --config ./configs/paper-001.toml \
-  --shard-index 0 --shard-count 4 \
-  --provider ycloud --vm-type standard-v3-32-64 \
-  --parallel 12 \
+  --parallel "$PARALLEL" \
+  --provider selectel \
+  --vm-type standard \
+  --out ./bench-results/vm/micro-net-paper-001
+```
+
+## Scaling Run
+
+```bash
+PARALLEL="$(nproc)"
+
+./target/release/micro-net bench \
+  --config ./configs/scaling-001.toml \
+  --parallel "$PARALLEL" \
+  --provider selectel \
+  --vm-type standard \
+  --out ./bench-results/vm/scaling-001
+```
+
+## Sharded Run
+
+```bash
+./target/release/micro-net bench \
+  --config ./configs/paper-001.toml \
+  --shard-index 0 \
+  --shard-count 4 \
+  --parallel "$(nproc)" \
+  --provider ycloud \
+  --vm-type standard-v3-32-64 \
   --out ./bench-results/micro-net-paper-001/shard-0
 ```
 
-## Scaling Experiment (Medium Topology)
-
-This is a reduced cross-product intended to test whether the main effects persist as the graph grows.
-
-```bash
-cargo run -p micro-net-cli -- bench \
-  --config ./configs/scaling-001.toml \
-  --parallel 12 \
-  --out ./bench-results/scaling-001-svc10
-```
-
-## Scaling Experiment (Final, One-Shot)
-
-Runs multiple topology sizes and replica counts in one `bench` invocation.
-
-```bash
-cargo run -p micro-net-cli -- bench \
-  --config ./configs/scaling-final-001.toml \
-  --parallel 12 \
-  --out ./bench-results/scaling-final-001
-```
-
-## Publication Run (No Config, Single Directory)
-
-```bash
-cargo run -p micro-net-cli -- bench \
-  --topologies star,ring,full-mesh,random-sparse \
-  --policies random,round-robin,least-inflight,score,score-local-only,score-local+network,score-local+downstream,score-no-downstream,score-no-host-pressure \
-  --scenarios healthy,db-overloaded,cache-degraded,broker-lag,zone-burst,partial-failure \
-  --load-levels 1,5,10,25,50,100 \
-  --seeds 50 \
-  --duration-ticks 12000 --warmup-ticks 2000 --drain-ticks 1000 \
-  --observability-lag-ticks 10 --observability-noise 0.03 \
-  --parallel 12 --trace none --artifacts aggregate --progress-ms 1000 \
-  --out ./bench-results/micro-net-paper-001
-```
-
-## Sharding Helper (Print Commands For All Shards)
+Print commands for all shards:
 
 ```bash
 cargo run -p micro-net-cli -- bench \
   --config ./configs/paper-001.toml \
-  --shard-count 8 --print-shard-commands \
+  --shard-count 8 \
+  --print-shard-commands \
   --out-base ./bench-results/micro-net-paper-001
 ```
 
-## Merge Shards
+Merge shards:
 
 ```bash
 cargo run -p micro-net-cli -- merge \
@@ -75,24 +83,20 @@ cargo run -p micro-net-cli -- merge \
     ./bench-results/micro-net-paper-001/shard-1 \
     ./bench-results/micro-net-paper-001/shard-2 \
     ./bench-results/micro-net-paper-001/shard-3 \
-    ./bench-results/micro-net-paper-001/shard-4 \
-    ./bench-results/micro-net-paper-001/shard-5 \
-    ./bench-results/micro-net-paper-001/shard-6 \
-    ./bench-results/micro-net-paper-001/shard-7 \
   --out ./bench-results/micro-net-paper-001-merged
 ```
 
-## Release Build
+## Publication Analysis
 
 ```bash
-export RUSTFLAGS="-C target-cpu=native"
-cargo build --release -p micro-net-cli
-```
-
-```bash
-./target/release/micro-net bench --config ./configs/paper-001.toml --parallel 12 --out ./bench-results/micro-net-paper-001
+python3 scripts/micro_net_analysis_publication.py \
+  --input ./bench-results/vm/micro-net-paper-001/aggregate.csv \
+  --input ./bench-results/vm/scaling-001/aggregate.csv \
+  --out-dir ./out/publication
 ```
 
 ## Notes
 
-- If `git` is not available on the system, `run_metadata.json` will have `git_commit = null`. This does not affect simulation correctness; it only reduces reproducibility metadata (and makes merge validation less strict).
+- `trace = "none"` and `artifacts = "aggregate"` are recommended for publication-scale runs.
+- If `git` is unavailable, `run_metadata.json` stores `git_commit = null`; the simulation still works, but reproducibility metadata is weaker.
+- `BENCH_VM_TYPE` / `--vm-type` is an experiment-tracking label, not necessarily a cloud API machine type.

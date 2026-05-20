@@ -1,84 +1,45 @@
-# micro-net-lab-rs
+# Micro-Net-Lab
 
-`micro-net-lab-rs` is a Rust research framework for deterministic, tick-based experiments with routing and load-balancing policies in typed microservice topologies.
+Micro-Net-Lab is a Rust research workspace for deterministic simulation of routing and load-balancing algorithms in typed microservice topologies.
 
-The first implementation is an **in-memory discrete-event simulator**. It is intentionally not a production service mesh, not a packet-level emulator and not a Docker/Kubernetes orchestrator. The architecture is prepared for those integrations through driver/adapter traits.
-
-## Why this project exists
-
-The core research direction is:
+The project focuses on one research question:
 
 ```text
-Dependency-aware score-based routing for typed microservice topologies.
+Can dependency-aware routing improve the error/latency/throughput trade-off
+under localized degradation in microservice dependency graphs?
 ```
 
-Traditional baselines usually route by local backend state:
+The simulator is intentionally not a production service mesh, not a packet-level network emulator, and not a Kubernetes/Docker orchestrator. It is a controlled simulation framework for reproducible comparative experiments.
+
+## Repository
+
+GitHub: <https://github.com/rusanoph/Micro-Net-Lab>
+
+Large benchmark outputs are intentionally not tracked. The CLI records reproducibility metadata for every benchmark run, including the git commit, command line, Rust compiler version, machine information, provider/VM labels, sharding parameters, and config fingerprint.
+
+## Workspace Layout
 
 ```text
-random
-round-robin
-least-inflight
-latency / EWMA latency
+crates/
+  micro-net-core/        domain model and traits
+  micro-net-petgraph/    graph backend and topology generators
+  micro-net-algorithms/  random, round-robin, least-inflight, score variants
+  micro-net-drivers/     in-memory deterministic simulation engine
+  micro-net-executor/    sequential/rayon batch helpers
+  micro-net-report/      JSON/CSV report writers
+  micro-net-cli/         CLI binary: micro-net
+
+configs/
+  sanity-001.toml        lightweight end-to-end check
+  paper-001.toml         full small-topology publication experiment
+  scaling-001.toml       one-shot scaling experiment
+
+scripts/
+  micro_net_analysis_publication.py
+
+EXPERIMENT_MODEL_RU_publication_draft.md  Russian publication draft
+EXPERIMENT_MODEL.md                       English model/results summary
 ```
-
-The proposed research direction is to compare those baselines with a policy that also accounts for candidate downstream state:
-
-```text
-database pressure
-cache miss risk
-broker lag
-network path cost
-host/zone pressure
-retry amplification risk
-```
-
-A key modeling decision is that all replicas of a logical service share the same logical dependency profile, but different concrete service instances can have different runtime placement, links, hosts, zones and concrete dependency bindings.
-
-Example:
-
-```text
-LogicalService payments:
-  depends on service-cache
-  depends on primary-db
-  publishes to events-broker
-
-ServiceInstance payments-1:
-  zone-a, host-a, cache-a, path to db-main = low latency
-
-ServiceInstance payments-2:
-  zone-b, host-b, cache-b, path to db-main = medium latency
-
-ServiceInstance payments-3:
-  zone-c, shared host, cache-c, path to db-main = high latency
-```
-
-The routing decision is still:
-
-```text
-target LogicalService = payments
-candidate ServiceInstances = payments-1, payments-2, payments-3
-```
-
-But a dependency-aware score may prefer a candidate whose local metrics are slightly worse if its concrete downstream path/resources are healthier.
-
-## Workspace layout
-
-```text
-micro-net-lab-rs/
-  Cargo.toml
-  README.md
-  HANDOFF.md
-  crates/
-    micro-net-core/        # pure domain model + traits
-    micro-net-petgraph/    # PetgraphBackend + topology generators
-    micro-net-algorithms/  # random / round-robin / least-inflight / score-v1
-    micro-net-drivers/     # in-memory tick simulation engine
-    micro-net-executor/    # sequential / rayon batch helpers
-    micro-net-report/      # JSON/CSV report writers
-    micro-net-cli/         # CLI binary: micro-net
-```
-
-`micro-net-core` does not depend on Petgraph, Tokio, Docker, Kubernetes, WebSocket or any UI/output implementation. Concrete backends depend on `micro-net-core`.
 
 ## Build
 
@@ -87,208 +48,114 @@ cargo build --workspace
 cargo test --workspace
 ```
 
-## Generate topology
+Release build:
 
 ```bash
-cargo run -p micro-net-cli -- generate-topology \
-  --kind ring \
-  --logical-services 3 \
-  --replicas-per-service 3 \
-  --seed 42 \
-  --out topology.json
+export RUSTFLAGS="-C target-cpu=native"
+cargo build --release -p micro-net-cli
 ```
 
-Supported topology kinds:
+Release binary:
 
 ```text
-star
-ring
-full-mesh
-random-sparse
+./target/release/micro-net
 ```
 
-The generated topology includes:
+## Sanity Check
 
-```text
-logical services
-service instances
-zones
-hosts
-database/cache/broker nodes
-explicit dependency bindings
-edges with latency/capacity/error/cost
-```
-
-## Run one experiment
-
-```bash
-cargo run -p micro-net-cli -- run \
-  --topology topology.json \
-  --policy score \
-  --seed 42 \
-  --duration-ticks 100 \
-  --requests-per-tick 5 \
-  --out runs/score-001
-```
-
-Supported policies:
-
-```text
-random
-round-robin
-least-inflight
-score
-```
-
-Output artifacts:
-
-```text
-runs/score-001/
-  experiment.json
-  topology.json
-  trace.jsonl
-  summary.json
-  metrics.csv
-```
-
-## Run a small benchmark
+Use this before any long benchmark:
 
 ```bash
 cargo run -p micro-net-cli -- bench \
-  --topologies star,ring,full-mesh,random-sparse \
-  --policies random,round-robin,least-inflight,score \
-  --seeds 3 \
+  --config ./configs/sanity-001.toml \
   --parallel 4 \
-  --duration-ticks 100 \
-  --requests-per-tick 5 \
-  --out bench-results
+  --out ./bench-results/sanity-001
 ```
 
-This runs:
+## Publication Benchmarks
 
-```text
-topologies × policies × seeds
-```
-
-and writes:
-
-```text
-bench-results/
-  aggregate.json
-  aggregate.csv
-  experiments/
-    ...
-```
-
-## Important concepts
-
-### LogicalService
-
-Abstract service identity, for example:
-
-```text
-payments
-orders
-analytics
-```
-
-It owns the logical dependency profile.
-
-### ServiceInstance
-
-Concrete replica selected by a routing policy:
-
-```text
-payments-1
-payments-2
-payments-3
-```
-
-Instances share logical dependencies but may have different zones, hosts, resource pressure and network paths.
-
-### Network topology graph
-
-Models concrete connectivity:
-
-```text
-node -> node edges
-latency
-capacity
-error_rate
-cost
-```
-
-### Service dependency profile
-
-Models what a service logically touches:
-
-```text
-cache
-database
-broker
-other services
-external APIs
-```
-
-### DependencyBinding
-
-Maps a concrete service instance and logical dependency to concrete target nodes:
-
-```text
-payments-1 + payments:cache -> cache-a
-payments-2 + payments:cache -> cache-b
-payments-3 + payments:cache -> cache-c
-payments-* + payments:db    -> db-main
-```
-
-## Rustdoc
-
-Key public types and traits have Rustdoc comments:
-
-```text
-GraphBackend
-TopologySpec
-ServiceIndex
-LogicalServiceSpec
-ServiceInstanceSpec
-RoutingPolicy
-Feature
-RoutingContext
-TraceEvent
-EventSink
-MetricCollector
-InMemorySimulationEngine
-PetgraphBackend
-```
-
-Generate docs with:
+Full small-topology experiment:
 
 ```bash
-cargo doc --workspace --no-deps --open
+PARALLEL="$(nproc)"
+
+./target/release/micro-net bench \
+  --config ./configs/paper-001.toml \
+  --parallel "$PARALLEL" \
+  --provider selectel \
+  --vm-type standard \
+  --out ./bench-results/vm/micro-net-paper-001
 ```
 
-## Current limitations
-
-This is the first scaffold, not a final simulator.
-
-Known limitations:
-
-```text
-EWMA is planned for the next iteration.
-YAML config is planned for the next iteration.
-Failure injectors are modeled only indirectly through synthetic runtime pressure.
-k_paths currently returns only the shortest path in PetgraphBackend.
-No Docker/K8s/stub driver yet.
-No Web UI yet.
-```
-
-## Validation note
-
-The project was generated in an environment where `cargo` was not installed, so the workspace could not be compiled inside that environment. The code is structured to be compilable, but the first thing to do after unpacking is:
+Scaling experiment:
 
 ```bash
-cargo fmt
-cargo test --workspace
+PARALLEL="$(nproc)"
+
+./target/release/micro-net bench \
+  --config ./configs/scaling-001.toml \
+  --parallel "$PARALLEL" \
+  --provider selectel \
+  --vm-type standard \
+  --out ./bench-results/vm/scaling-001
 ```
 
-and then fix any compiler-level issues reported by your local Rust toolchain.
+## Sharding
+
+For large runs, split the benchmark across machines:
+
+```bash
+./target/release/micro-net bench \
+  --config ./configs/paper-001.toml \
+  --shard-index 0 \
+  --shard-count 4 \
+  --parallel "$(nproc)" \
+  --provider ycloud \
+  --vm-type standard-v3-32-64 \
+  --out ./bench-results/micro-net-paper-001/shard-0
+```
+
+Merge shard outputs:
+
+```bash
+cargo run -p micro-net-cli -- merge \
+  --inputs \
+    ./bench-results/micro-net-paper-001/shard-0 \
+    ./bench-results/micro-net-paper-001/shard-1 \
+    ./bench-results/micro-net-paper-001/shard-2 \
+    ./bench-results/micro-net-paper-001/shard-3 \
+  --out ./bench-results/micro-net-paper-001-merged
+```
+
+## Publication Analysis
+
+The final article tables are generated with:
+
+```bash
+python3 scripts/micro_net_analysis_publication.py \
+  --input ./bench-results/vm/micro-net-paper-001/aggregate.csv \
+  --input ./bench-results/vm/scaling-001/aggregate.csv \
+  --out-dir ./out/publication
+```
+
+Important outputs:
+
+```text
+out/publication/publication_tables.md
+out/publication/global_policy_summary_with_ci.csv
+out/publication/scenario_focus_best_score_vs_baseline.csv
+out/publication/pareto_counts.csv
+out/publication/figures/
+```
+
+## Main Results
+
+The final analysis supports the following cautious claim:
+
+```text
+Dependency-aware score routing does not dominate every metric in every regime,
+but improves the Pareto trade-off under localized degradation, especially
+partial-failure and zone-burst.
+```
+
+The important negative result is that `least-inflight` can look good by p95 latency while worsening error rate and throughput. Therefore routing quality must be evaluated as a multi-objective problem.

@@ -1,6 +1,7 @@
 /target
 /runs
 /bench-results
+/out
 *.log
 .DS_Store
 .codex
